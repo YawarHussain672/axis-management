@@ -1,0 +1,62 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ─── Next.js ─────────────────────────────────────────────────────────────────
+/.next/
+/out/
+/build
+
+# ─── Environment Variables ───────────────────────────────────────────────────
+# Never commit real env files — use .env.example as a template
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+
+# ─── Vercel ──────────────────────────────────────────────────────────────────
+.vercel
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+/coverage
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Prisma ──────────────────────────────────────────────────────────────────
+# Keep schema.prisma and migrations, ignore generated client
+# (Vercel runs prisma generate during build)
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.pem
+.idea/
+.vscode/settings.json
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.tgz
+.cache
+
+# ─── AI Agent Files ──────────────────────────────────────────────────────────
+CLAUDE.md
+AGENTS.md
+PROJECT_SUMMARY.md
