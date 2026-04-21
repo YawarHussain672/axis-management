@@ -39,6 +39,9 @@ interface Project {
 // Global event for project created
 const PROJECT_CREATED_EVENT = "project-created"
 
+// Global event for project deleted
+const PROJECT_DELETED_EVENT = "project-deleted"
+
 export function ProjectsPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -103,10 +106,19 @@ export function ProjectsPageClient() {
     router.refresh()
   }, [fetchData, router])
 
+  const handleProjectDeleted = useCallback(() => {
+    fetchData()
+    router.refresh()
+  }, [fetchData, router])
+
   useEffect(() => {
     window.addEventListener(PROJECT_CREATED_EVENT, handleProjectCreated)
-    return () => window.removeEventListener(PROJECT_CREATED_EVENT, handleProjectCreated)
-  }, [handleProjectCreated])
+    window.addEventListener(PROJECT_DELETED_EVENT, handleProjectDeleted)
+    return () => {
+      window.removeEventListener(PROJECT_CREATED_EVENT, handleProjectCreated)
+      window.removeEventListener(PROJECT_DELETED_EVENT, handleProjectDeleted)
+    }
+  }, [handleProjectCreated, handleProjectDeleted])
 
   return (
     <div className="space-y-5">

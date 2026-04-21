@@ -6,6 +6,9 @@ import Link from "next/link"
 import { Eye, Pencil, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
+// Global event for project deleted (syncs with projects-page-client)
+const PROJECT_DELETED_EVENT = "project-deleted"
+
 interface ProjectsActionsProps {
   projectId: string
 }
@@ -21,6 +24,8 @@ export function ProjectsActions({ projectId }: ProjectsActionsProps) {
       const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" })
       if (res.ok) {
         toast.success("Project deleted")
+        // Notify all components that a project was deleted
+        window.dispatchEvent(new CustomEvent(PROJECT_DELETED_EVENT))
         router.refresh()
       } else {
         const data = await res.json()
