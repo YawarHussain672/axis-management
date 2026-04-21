@@ -39,4 +39,5 @@ export const EVENTS = {
   DISPATCH_UPDATED: "dispatch:updated",
   STATS_UPDATED: "stats:updated",
   NOTIFICATION_CREATED: "notification:created",
+  NOTIFICATION_DELETED: "notification:deleted",
 } as const

@@ -46,16 +46,24 @@ export function NotificationBell() {
     fetchNotifications()
   }, [fetchNotifications])
 
+  // Handle real-time delete event
+  const handleNotificationDeleted = useCallback((data: { userId: string; notificationId: string }) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== data.notificationId))
+    setUnreadCount((c) => Math.max(0, c - 1))
+  }, [])
+
   // Real-time updates via Pusher
   useEffect(() => {
     const client = getPusherClient()
     const channel = client.subscribe(CHANNELS.NOTIFICATIONS)
     channel.bind(EVENTS.NOTIFICATION_CREATED, fetchNotifications)
+    channel.bind(EVENTS.NOTIFICATION_DELETED, handleNotificationDeleted)
     return () => {
       channel.unbind(EVENTS.NOTIFICATION_CREATED, fetchNotifications)
+      channel.unbind(EVENTS.NOTIFICATION_DELETED, handleNotificationDeleted)
       client.unsubscribe(CHANNELS.NOTIFICATIONS)
     }
-  }, [fetchNotifications])
+  }, [fetchNotifications, handleNotificationDeleted])
 
   // Close on outside click
   useEffect(() => {
@@ -73,9 +81,10 @@ export function NotificationBell() {
   }
 
   const handleClick = async (n: Notification) => {
+    // Delete notification on click (Option 3: Delete on mark-read)
+    await fetch(`/api/notifications/${n.id}`, { method: "DELETE" })
+    setNotifications((prev) => prev.filter((x) => x.id !== n.id))
     if (!n.read) {
-      await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
-      setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x))
       setUnreadCount((c) => Math.max(0, c - 1))
     }
     if (n.link) {
