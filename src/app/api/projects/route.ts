@@ -169,7 +169,9 @@ export async function POST(request: NextRequest) {
     })
 
     // Notify all admins of new approval request
+    console.log("[API] Calling notifyAdminsNewApproval for project:", project.id)
     await notifyAdminsNewApproval(project.id, project.name, project.projectId, session.user.name || "A POC")
+    console.log("[API] notifyAdminsNewApproval completed")
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {

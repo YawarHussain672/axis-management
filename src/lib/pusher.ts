@@ -17,7 +17,21 @@ export function getPusherClient(): PusherJS {
   if (!pusherClient) {
     pusherClient = new PusherJS(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+      enabledTransports: ["ws", "wss"],
     })
+
+    // Debug connection state
+    if (typeof window !== "undefined") {
+      pusherClient.connection.bind("connected", () => {
+        console.log("[Pusher] Connected successfully")
+      })
+      pusherClient.connection.bind("disconnected", () => {
+        console.log("[Pusher] Disconnected")
+      })
+      pusherClient.connection.bind("error", () => {
+        // Silent fail - polling will handle notifications
+      })
+    }
   }
   return pusherClient
 }

@@ -30,40 +30,77 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
 
+  // Fetch notifications function
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications")
+      console.log("[NotificationBell] Fetching notifications...")
+      const res = await fetch(`/api/notifications?t=${Date.now()}`, { cache: "no-store" })
       if (res.ok) {
         const data = await res.json()
-        setNotifications(data.notifications)
-        setUnreadCount(data.unreadCount)
+        console.log("[NotificationBell] Fetched", data.notifications?.length || 0, "notifications")
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.unreadCount || 0)
       }
-    } catch { /* silent */ }
+    } catch (error) {
+      console.error("[NotificationBell] Failed to fetch:", error)
+    }
   }, [])
 
-  // Initial fetch
+  // Keep ref updated with latest function
+  const fetchNotificationsRef = useRef(fetchNotifications)
   useEffect(() => {
-    fetchNotifications()
+    fetchNotificationsRef.current = fetchNotifications
   }, [fetchNotifications])
 
-  // Handle real-time delete event
-  const handleNotificationDeleted = useCallback((data: { userId: string; notificationId: string }) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== data.notificationId))
-    setUnreadCount((c) => Math.max(0, c - 1))
+  // Initial fetch + polling fallback
+  useEffect(() => {
+    fetchNotificationsRef.current()
+    // Poll every 3 seconds as fallback (Pusher WebSocket failing)
+    const interval = setInterval(() => fetchNotificationsRef.current(), 3000)
+    return () => clearInterval(interval)
   }, [])
+
+  // Handle real-time delete event (single or all)
+  const handleNotificationDeletedRef = useRef((data: { userId: string; notificationId?: string; allDeleted?: boolean }) => {
+    if (data.allDeleted) {
+      setNotifications([])
+      setUnreadCount(0)
+    } else if (data.notificationId) {
+      setNotifications((prev) => prev.filter((n) => n.id !== data.notificationId))
+      setUnreadCount((c) => Math.max(0, c - 1))
+    }
+  })
 
   // Real-time updates via Pusher
   useEffect(() => {
+    console.log("[NotificationBell] Setting up Pusher...")
     const client = getPusherClient()
+    console.log("[NotificationBell] Pusher client:", client)
+
     const channel = client.subscribe(CHANNELS.NOTIFICATIONS)
-    channel.bind(EVENTS.NOTIFICATION_CREATED, fetchNotifications)
-    channel.bind(EVENTS.NOTIFICATION_DELETED, handleNotificationDeleted)
+    console.log("[NotificationBell] Subscribed to channel:", CHANNELS.NOTIFICATIONS)
+
+    // Create stable wrapper that calls the ref (always fresh)
+    const handleNewNotification = () => {
+      console.log("[NotificationBell] Received NOTIFICATION_CREATED event!")
+      fetchNotificationsRef.current()
+    }
+    const handleDelete = (data: { userId: string; notificationId?: string; allDeleted?: boolean }) => {
+      console.log("[NotificationBell] Received NOTIFICATION_DELETED event:", data)
+      handleNotificationDeletedRef.current(data)
+    }
+
+    channel.bind(EVENTS.NOTIFICATION_CREATED, handleNewNotification)
+    channel.bind(EVENTS.NOTIFICATION_DELETED, handleDelete)
+    console.log("[NotificationBell] Bound to events:", EVENTS.NOTIFICATION_CREATED, EVENTS.NOTIFICATION_DELETED)
+
     return () => {
-      channel.unbind(EVENTS.NOTIFICATION_CREATED, fetchNotifications)
-      channel.unbind(EVENTS.NOTIFICATION_DELETED, handleNotificationDeleted)
+      console.log("[NotificationBell] Cleaning up Pusher...")
+      channel.unbind(EVENTS.NOTIFICATION_CREATED, handleNewNotification)
+      channel.unbind(EVENTS.NOTIFICATION_DELETED, handleDelete)
       client.unsubscribe(CHANNELS.NOTIFICATIONS)
     }
-  }, [fetchNotifications, handleNotificationDeleted])
+  }, []) // Empty deps - stable
 
   // Close on outside click
   useEffect(() => {
@@ -74,9 +111,9 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  const markAllRead = async () => {
-    await fetch("/api/notifications", { method: "PATCH" })
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const deleteAllNotifications = async () => {
+    await fetch("/api/notifications", { method: "DELETE" })
+    setNotifications([])
     setUnreadCount(0)
   }
 
@@ -113,9 +150,9 @@ export function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900 text-sm">Notifications</h3>
             <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-                  <CheckCheck className="h-3.5 w-3.5" /> Mark all read
+              {notifications.length > 0 && (
+                <button onClick={deleteAllNotifications} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  <CheckCheck className="h-3.5 w-3.5" /> Clear all
                 </button>
               )}
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">

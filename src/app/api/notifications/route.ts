@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
 
 // GET /api/notifications — fetch current user's notifications
 export async function GET() {
@@ -39,5 +40,28 @@ export async function PATCH() {
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: "Failed to mark notifications as read" }, { status: 500 })
+  }
+}
+
+// DELETE /api/notifications — delete all notifications
+export async function DELETE() {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    await prisma.notification.deleteMany({
+      where: { userId: session.user.id },
+    })
+
+    // Broadcast real-time update
+    await pusherServer.trigger(CHANNELS.NOTIFICATIONS, EVENTS.NOTIFICATION_DELETED, {
+      userId: session.user.id,
+      allDeleted: true,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: "Failed to delete notifications" }, { status: 500 })
   }
 }
