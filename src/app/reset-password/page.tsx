@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Printer, Loader2, CheckCircle, Eye, EyeOff, AlertCircle } from "lucide-react"
@@ -17,10 +17,7 @@ function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    if (!token) setError("Invalid reset link. Please request a new one.")
-  }, [token])
+  const displayError = token ? error : "Invalid reset link. Please request a new one."
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,9 +72,9 @@ function ResetPasswordForm() {
               <h2 className="text-xl font-bold text-slate-900 mb-1">Set new password</h2>
               <p className="text-slate-500 text-sm mb-6">Choose a strong password for your account.</p>
 
-              {error && (
+              {displayError && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 mb-4">
-                  <AlertCircle className="h-4 w-4 shrink-0" />{error}
+                  <AlertCircle className="h-4 w-4 shrink-0" />{displayError}
                 </div>
               )}
 

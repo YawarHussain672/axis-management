@@ -18,14 +18,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "You cannot modify your own account" }, { status: 403 })
     }
 
-    const { name, phone, role, active } = await request.json()
+    const { name, phone, role, active, location, branch } = await request.json()
 
     const user = await prisma.user.update({
       where: { id },
-      data: { name, phone, role, active },
+      data: { name, phone, role, active, location, branch },
     })
 
-    const { password: _, ...safeUser } = user
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      location: user.location,
+      branch: user.branch,
+      active: user.active,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }
     return NextResponse.json(safeUser)
   } catch (error) {
     console.error(error)

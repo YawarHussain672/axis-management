@@ -10,10 +10,11 @@ import { Plus, Trash2, AlertCircle, Loader2 } from "lucide-react"
 import { formatCurrency, applyGST, getGSTAmount } from "@/utils/formatters"
 import { toast } from "sonner"
 import { BRANCH_LOCATIONS, CITIES } from "@/lib/branch-locations"
+import { getUnitPriceFromSlabs, type VolumeSlab } from "@/lib/rate-card-pricing"
 
 interface CollateralItem { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }
 interface POC { id: string; name: string; email: string }
-interface RateCardItem { id: string; name: string; defaultPrice: number }
+interface RateCardItem { id: string; name: string; defaultPrice: number; volumeSlabs: VolumeSlab[] }
 
 interface NewProjectFormProps {
   onSuccess?: () => void
@@ -87,7 +88,11 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
       const updated = { ...c, [field]: value }
       if (field === "itemName") {
         const item = rateCards.find((i) => i.name === value)
-        if (item) updated.unitPrice = item.defaultPrice
+        if (item) updated.unitPrice = getUnitPriceFromSlabs(item.volumeSlabs, updated.quantity || 1) ?? item.defaultPrice
+      }
+      if (field === "quantity") {
+        const item = rateCards.find((i) => i.name === updated.itemName)
+        if (item) updated.unitPrice = getUnitPriceFromSlabs(item.volumeSlabs, Number(value)) ?? item.defaultPrice
       }
       updated.totalPrice = updated.quantity * updated.unitPrice
       return updated

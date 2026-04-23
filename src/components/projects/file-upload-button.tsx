@@ -1,22 +1,22 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Upload, Loader2, CheckCircle, FileText, X } from "lucide-react"
+import { Upload, Loader2, FileText, Eye, Download, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface FileUploadButtonProps {
   projectId: string
   fileType: "PO" | "CHALLAN" | "INVOICE"
   label: string
-  existingFiles: { id: string; filename: string; url: string }[]
+  existingFiles: { id: string; filename: string; url: string; size?: number; uploadedAt?: string }[]
+  isAdmin?: boolean
 }
 
-export function FileUploadButton({ projectId, fileType, label, existingFiles }: FileUploadButtonProps) {
-  const router = useRouter()
+export function FileUploadButton({ projectId, fileType, label, existingFiles, isAdmin }: FileUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -61,7 +61,8 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles }: 
 
       setProgress(100)
       toast.success(`${label} uploaded successfully!`)
-      router.refresh()
+      // Force page refresh to get updated file list from server
+      window.location.reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed")
     } finally {
@@ -82,25 +83,29 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles }: 
           </div>
           <p className="font-semibold text-sm text-slate-800">{label}</p>
         </div>
-        <button
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#003c71] hover:bg-[#002a52] text-white text-xs font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {uploading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Upload className="h-3.5 w-3.5" />
-          )}
-          {uploading ? "Uploading..." : "Upload"}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx"
-          onChange={handleFileChange}
-        />
+        {isAdmin && (
+          <>
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#003c71] hover:bg-[#002a52] text-white text-xs font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {uploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx"
+              onChange={handleFileChange}
+            />
+          </>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -115,25 +120,73 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles }: 
           <p className="text-xs text-slate-400 mt-1">{progress}% uploaded</p>
         </div>
       )}
+      {existingFiles.length === 0 && <p className="text-xs text-gray-400 italic">No files uploaded</p>}
+
 
       {/* Existing files */}
       {existingFiles.length > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {existingFiles.map((f) => (
-            <a
+            <div
               key={f.id}
-              href={f.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition-colors group"
+              className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100"
             >
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-              <span className="text-xs text-emerald-700 font-medium truncate flex-1">{f.filename}</span>
-              <span className="text-xs text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">View ↗</span>
-            </a>
+              <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span className="text-xs text-emerald-800 font-medium truncate flex-1">{f.filename}</span>
+              <div className="flex items-center gap-1">
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded hover:bg-emerald-200 transition-colors inline-flex"
+                  title="View"
+                >
+                  <Eye className="h-3.5 w-3.5 text-emerald-700" />
+                </a>
+                <a
+                  href={`/api/files/${f.id}/download`}
+                  download={f.filename}
+                  className="p-1.5 rounded hover:bg-emerald-200 transition-colors inline-flex"
+                  title="Download"
+                >
+                  <Download className="h-3.5 w-3.5 text-emerald-700" />
+                </a>
+                {isAdmin && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Are you sure you want to delete this file?")) return
+                      setDeleting(f.id)
+                      try {
+                        const res = await fetch(`/api/files/${f.id}`, { method: "DELETE" })
+                        if (!res.ok) {
+                          const data = await res.json().catch(() => ({}))
+                          throw new Error(data.error || "Delete failed")
+                        }
+                        toast.success("File deleted")
+                        // Force page refresh to get updated file list from server
+                        window.location.reload()
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Failed to delete file")
+                      } finally {
+                        setDeleting(null)
+                      }
+                    }}
+                    disabled={deleting === f.id}
+                    className="p-1.5 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deleting === f.id ? (
+                      <Loader2 className="h-3.5 w-3.5 text-red-600 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
           ))}
         </div>
-      ) : (
+      ) : isAdmin ? (
         <div
           onClick={() => inputRef.current?.click()}
           className="border-2 border-dashed border-slate-200 rounded-lg p-4 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all"
@@ -142,6 +195,8 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles }: 
           <p className="text-xs text-slate-400">Click to upload or drag & drop</p>
           <p className="text-xs text-slate-300 mt-0.5">PDF, Image, Excel · Max 10MB</p>
         </div>
+      ) : (
+        <p className="text-xs text-gray-400 italic">Document not uploaded yet</p>
       )}
     </div>
   )

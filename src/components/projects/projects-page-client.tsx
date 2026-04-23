@@ -89,7 +89,11 @@ export function ProjectsPageClient() {
   }, [params.status, params.poc, params.location, params.search, params.page])
 
   useEffect(() => {
-    fetchData()
+    const timeout = window.setTimeout(() => {
+      void fetchData()
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [fetchData])
 
   const buildUrl = (newParams: Record<string, string>) => {

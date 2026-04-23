@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { name, email, phone, role, password } = await request.json()
+    const { name, email, phone, role, password, location, branch } = await request.json()
     if (!name || !email || !password) {
       return NextResponse.json({ error: "Name, email and password are required" }, { status: 400 })
     }
@@ -23,10 +23,21 @@ export async function POST(request: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
-      data: { name, email, phone, role: role as UserRole || UserRole.POC, password: hashed, active: true },
+      data: { name, email, phone, role: role as UserRole || UserRole.POC, password: hashed, active: true, location, branch },
     })
 
-    const { password: _, ...safeUser } = user
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      location: user.location,
+      branch: user.branch,
+      active: user.active,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }
     return NextResponse.json(safeUser, { status: 201 })
   } catch (error) {
     console.error(error)

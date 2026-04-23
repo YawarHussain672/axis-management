@@ -10,9 +10,9 @@ import { toast } from "sonner"
 interface TrackButtonProps {
   courier: string
   trackingId: string
-  dispatchDate: Date | null
-  expectedDelivery: Date | null
-  actualDelivery: Date | null
+  dispatchDate: Date | string | null
+  expectedDelivery: Date | string | null
+  actualDelivery: Date | string | null
 }
 
 // Direct tracking URLs for each courier — lands on the actual tracking result page

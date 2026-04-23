@@ -102,7 +102,7 @@ export async function GET() {
       projectsByStatus: projectsByStatus.map(s => ({ ...s, _count: { id: Number(s._count.id) } })),
       projectsByLocation: projectsByLocation.map(l => ({ ...l, _count: { id: Number(l._count.id) }, _sum: { totalCost: Number(l._sum.totalCost || 0) } })),
       collateralStats: collateralStats.map(c => ({ ...c, _count: { id: Number(c._count.id) }, _sum: { totalPrice: Number(c._sum.totalPrice || 0), quantity: Number(c._sum.quantity || 0) } })),
-      branchData: branchData.map((b: any) => ({
+      branchData: branchData.map((b) => ({
         branch: b.branch,
         campaigns: Number(b.campaigns),
         leads_generated: Number(b.leads_generated),
@@ -120,8 +120,9 @@ export async function GET() {
       avgCPL,
       avgCPA,
     })
-  } catch (error: any) {
-    console.error("Analytics API error:", error?.message || error)
-    return NextResponse.json({ error: "Failed to fetch analytics", details: error?.message }, { status: 500 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    console.error("Analytics API error:", message)
+    return NextResponse.json({ error: "Failed to fetch analytics", details: message }, { status: 500 })
   }
 }

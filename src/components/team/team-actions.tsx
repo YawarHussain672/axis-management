@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Pencil, UserX, UserCheck, Loader2, Trash2, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
-interface Member { id: string; name: string; phone: string; role: string; active: boolean }
+interface Member { id: string; name: string; phone: string; role: string; active: boolean; location?: string; branch?: string }
 
 interface TeamActionsProps {
   mode: "add" | "edit"
@@ -27,6 +27,8 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
     phone: member?.phone || "",
     role: member?.role || "POC",
     password: "",
+    location: member?.location || "",
+    branch: member?.branch || "",
   })
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -35,7 +37,7 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
     try {
       const url = mode === "add" ? "/api/team" : `/api/team/${member!.id}`
       const method = mode === "add" ? "POST" : "PUT"
-      const body = mode === "add" ? form : { name: form.name, phone: form.phone, role: form.role }
+      const body = mode === "add" ? form : { name: form.name, phone: form.phone, role: form.role, location: form.location, branch: form.branch }
 
       const res = await fetch(url, {
         method,
@@ -107,39 +109,47 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
           <Plus className="h-4 w-4" /> Add Member
         </Button>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader><DialogTitle>Add Team Member</DialogTitle></DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label>Full Name</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" />
+            <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Full Name</Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" className="h-9" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@axismaxlife.com" />
+              <div className="space-y-1">
+                <Label className="text-xs">Email</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@axismaxlife.com" className="h-9" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Phone</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" />
+              <div className="space-y-1">
+                <Label className="text-xs">Phone</Label>
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" className="h-9" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Role</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Role</Label>
                 <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="POC">POC</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Password</Label>
-                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
+              <div className="space-y-1">
+                <Label className="text-xs">Password</Label>
+                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Location</Label>
+                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g., Mumbai, Delhi" className="h-9" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs">Branch</Label>
+                <Input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="e.g., Connaught Place Branch, Andheri Branch" className="h-9" />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading}>
+              <Button variant="outline" onClick={() => setOpen(false)} size="sm">Cancel</Button>
+              <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading} size="sm">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Member"}
               </Button>
             </DialogFooter>
@@ -178,31 +188,39 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader><DialogTitle>Edit Member</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Full Name</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Full Name</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <div className="space-y-1">
+              <Label className="text-xs">Phone</Label>
+              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-9" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Role</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Role</Label>
               <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="POC">POC</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Location</Label>
+              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g., Mumbai, Delhi" className="h-9" />
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-xs">Branch</Label>
+              <Input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="e.g., Connaught Place Branch" className="h-9" />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading}>
+            <Button variant="outline" onClick={() => setOpen(false)} size="sm">Cancel</Button>
+            <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading} size="sm">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
             </Button>
           </DialogFooter>
@@ -218,7 +236,7 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
               Permanently Delete Account?
             </DialogTitle>
             <DialogDescription>
-              This action cannot be undone. {member?.name}'s account will be permanently removed from the database.
+              This action cannot be undone. {member?.name}&apos;s account will be permanently removed from the database.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

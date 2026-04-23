@@ -7,6 +7,7 @@ import { z } from "zod"
 import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
 import { logActivity } from "@/lib/audit"
 import { notifyAdminsNewApproval } from "@/lib/notifications"
+import { getUnitPrice } from "@/lib/ratecard"
 
 const GST_RATE = 0.18
 
@@ -18,16 +19,37 @@ const createProjectSchema = z.object({
   state: z.string().optional(),
   deliveryDate: z.string().min(1, "Delivery date is required"),
   instructions: z.string().max(1000).optional(),
-  totalCost: z.number().min(0),
+  totalCost: z.number().min(0).optional(),
   leadsGenerated: z.number().int().min(0).nullable().optional(),
   leadsConverted: z.number().int().min(0).nullable().optional(),
   collaterals: z.array(z.object({
     itemName: z.string().min(1),
     quantity: z.number().int().min(1, "Quantity must be at least 1"),
-    unitPrice: z.number().min(0),
-    totalPrice: z.number().min(0),
+    unitPrice: z.number().min(0).optional(),
+    totalPrice: z.number().min(0).optional(),
   })).min(1, "At least one collateral is required"),
 })
+
+async function priceCollaterals(collaterals: Array<{ itemName: string; quantity: number }>) {
+  const priced = await Promise.all(collaterals.map(async (c) => {
+    const unitPrice = await getUnitPrice(c.itemName, c.quantity)
+    if (unitPrice === null) {
+      throw new Error(`No active rate card price found for ${c.itemName} at quantity ${c.quantity}`)
+    }
+
+    return {
+      itemName: c.itemName,
+      quantity: c.quantity,
+      unitPrice,
+      totalPrice: unitPrice * c.quantity,
+    }
+  }))
+
+  return {
+    collaterals: priced,
+    subtotal: priced.reduce((sum, c) => sum + c.totalPrice, 0),
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -106,17 +128,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Delivery date must be in the future" }, { status: 400 })
     }
 
+    if (session.user.role === "POC" && pocId !== session.user.id) {
+      return NextResponse.json({ error: "POCs can only create projects for themselves" }, { status: 403 })
+    }
+
     // Validate POC exists
     const poc = await prisma.user.findUnique({ where: { id: pocId } })
-    if (!poc || !poc.active) {
+    if (!poc || !poc.active || poc.role !== UserRole.POC) {
       return NextResponse.json({ error: "Invalid POC selected" }, { status: 400 })
+    }
+
+    let priced: Awaited<ReturnType<typeof priceCollaterals>>
+    try {
+      priced = await priceCollaterals(collaterals)
+    } catch (error) {
+      const pricingError = error instanceof Error ? error.message : "Invalid collateral pricing"
+      console.error("[API] Pricing error:", pricingError)
+      return NextResponse.json({
+        error: pricingError,
+      }, { status: 400 })
     }
 
     const year = new Date().getFullYear()
     const random = Math.floor(Math.random() * 900) + 100
     const projectId = `PRJ-${year}-${random}`
     const piNumber = Math.floor(Math.random() * 9000 + 1000).toString()
-    const totalCostWithGST = totalCost * (1 + GST_RATE)
+    const totalCostWithGST = priced.subtotal * (1 + GST_RATE)
 
     const project = await prisma.project.create({
       data: {
@@ -134,7 +171,7 @@ export async function POST(request: NextRequest) {
         status: ProjectStatus.REQUESTED,
         pocId,
         collaterals: {
-          create: collaterals.map((c) => ({
+          create: priced.collaterals.map((c) => ({
             itemName: c.itemName,
             quantity: c.quantity,
             unitPrice: c.unitPrice,
@@ -142,7 +179,7 @@ export async function POST(request: NextRequest) {
           })),
         },
         statusHistory: {
-          create: { status: ProjectStatus.REQUESTED, note: "Project created", changedById: session.user.id },
+          create: { status: ProjectStatus.REQUESTED, note: "Project created", changedById: pocId },
         },
       },
       include: {
@@ -152,30 +189,43 @@ export async function POST(request: NextRequest) {
     })
 
     await prisma.approval.create({
-      data: { projectId: project.id, requestedById: session.user.id, status: "PENDING" },
+      data: { projectId: project.id, requestedById: pocId, status: "PENDING" },
     })
 
-    // Notify all clients
-    await pusherServer.trigger(CHANNELS.PROJECTS, EVENTS.PROJECT_CREATED, { id: project.id })
-    await pusherServer.trigger(CHANNELS.DASHBOARD, EVENTS.STATS_UPDATED, {})
-    await pusherServer.trigger(CHANNELS.APPROVALS, EVENTS.APPROVAL_UPDATED, {})
+    // Post-creation notifications (non-critical - don't fail if they error)
+    try {
+      // Notify all clients via Pusher
+      await pusherServer.trigger(CHANNELS.PROJECTS, EVENTS.PROJECT_CREATED, { id: project.id })
+      await pusherServer.trigger(CHANNELS.DASHBOARD, EVENTS.STATS_UPDATED, {})
+      await pusherServer.trigger(CHANNELS.APPROVALS, EVENTS.APPROVAL_UPDATED, {})
 
-    await logActivity({
-      userId: session.user.id,
-      action: "PROJECT_CREATED",
-      entityType: "project",
-      entityId: project.id,
-      details: { projectId: project.projectId, name: project.name, location, totalCost: project.totalCost },
-    })
+      // Log activity (use pocId as the actor since they're the one requesting)
+      await logActivity({
+        userId: pocId,
+        action: "PROJECT_CREATED",
+        entityType: "project",
+        entityId: project.id,
+        details: { projectId: project.projectId, name: project.name, location, clientSubtotal: totalCost, totalCost: project.totalCost },
+      })
 
-    // Notify all admins of new approval request
-    console.log("[API] Calling notifyAdminsNewApproval for project:", project.id)
-    await notifyAdminsNewApproval(project.id, project.name, project.projectId, session.user.name || "A POC")
-    console.log("[API] notifyAdminsNewApproval completed")
+      // Notify all admins of new approval request
+      console.log("[API] Calling notifyAdminsNewApproval for project:", project.id)
+      await notifyAdminsNewApproval(project.id, project.name, project.projectId, poc.name || "A POC")
+      console.log("[API] notifyAdminsNewApproval completed")
+    } catch (notifyError) {
+      // Log but don't fail - project is already created
+      console.error("[API] Post-creation notifications failed:", notifyError)
+    }
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
-    console.error("POST /api/projects error:", error)
-    return NextResponse.json({ error: "Failed to create project" }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : ""
+    console.error("[API] POST /api/projects CRITICAL ERROR:", errorMessage)
+    console.error("[API] Error stack:", errorStack)
+    return NextResponse.json({
+      error: "Failed to create project",
+      debug: process.env.NODE_ENV === "development" ? errorMessage : undefined
+    }, { status: 500 })
   }
 }

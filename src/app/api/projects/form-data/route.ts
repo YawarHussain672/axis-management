@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { UserRole } from "@prisma/client"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { getUnitPriceFromSlabs } from "@/lib/rate-card-pricing"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -12,7 +13,11 @@ export async function GET() {
 
   const [pocs, rateCards] = await Promise.all([
     prisma.user.findMany({
-      where: { role: UserRole.POC, active: true },
+      where: {
+        role: UserRole.POC,
+        active: true,
+        ...(session.user.role === "POC" ? { id: session.user.id } : {}),
+      },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
@@ -28,10 +33,8 @@ export async function GET() {
     rateCards: rateCards.map((r) => ({
       id: r.id,
       name: r.itemName,
-      defaultPrice: (() => {
-        const slabs = r.volumeSlabs as { slab: string; price: number }[]
-        return slabs?.[0]?.price || 0
-      })(),
+      volumeSlabs: r.volumeSlabs,
+      defaultPrice: getUnitPriceFromSlabs(r.volumeSlabs, 1) ?? 0,
     })),
   })
 }

@@ -18,6 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id } = await params
     const { action, notes } = await request.json()
+    const notesText = typeof notes === "string" ? notes.trim() : ""
 
     const approval = await prisma.approval.findUnique({
       where: { id },
@@ -28,9 +29,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     if (!approval) return NextResponse.json({ error: "Approval not found" }, { status: 404 })
 
-    if (action === "approve" || action === "reject") {
+    if (action === "approve" || action === "reject" || action === "reminder") {
       if (session.user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Only admins can approve or reject projects" }, { status: 403 })
+        return NextResponse.json({ error: "Only admins can manage approvals" }, { status: 403 })
       }
     }
 
@@ -38,14 +39,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await prisma.$transaction([
         prisma.approval.update({
           where: { id },
-          data: { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date(), notes },
+          data: { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date(), notes: notesText || undefined },
         }),
         prisma.project.update({
           where: { id: approval.projectId },
           data: {
             status: ProjectStatus.APPROVED,
             statusHistory: {
-              create: { status: ProjectStatus.APPROVED, note: notes || "Approved", changedById: session.user.id },
+              create: { status: ProjectStatus.APPROVED, note: notesText || "Approved", changedById: session.user.id },
             },
           },
         }),
@@ -70,21 +71,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         action: "APPROVED",
         entityType: "approval",
         entityId: id,
-        details: { projectId: approval.projectId, notes },
+        details: { projectId: approval.projectId, notes: notesText || undefined },
       })
 
     } else if (action === "reject") {
+      if (!notesText) {
+        return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 })
+      }
+
       await prisma.$transaction([
         prisma.approval.update({
           where: { id },
-          data: { status: "REJECTED", approvedById: session.user.id, rejectedAt: new Date(), notes },
+          data: { status: "REJECTED", approvedById: session.user.id, rejectedAt: new Date(), notes: notesText },
         }),
         prisma.project.update({
           where: { id: approval.projectId },
           data: {
             status: ProjectStatus.CANCELLED,
             statusHistory: {
-              create: { status: ProjectStatus.CANCELLED, note: notes || "Rejected", changedById: session.user.id },
+              create: { status: ProjectStatus.CANCELLED, note: notesText, changedById: session.user.id },
             },
           },
         }),
@@ -95,12 +100,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         pocName: approval.project.poc.name,
         projectName: approval.project.name,
         projectId: approval.project.projectId,
-        reason: notes,
+        reason: notesText,
         appUrl: APP_URL,
       })
 
       // In-app notification
-      await notifyProjectRejected(approval.projectId, approval.project.poc.id, approval.project.name, approval.project.projectId, notes)
+      await notifyProjectRejected(approval.projectId, approval.project.poc.id, approval.project.name, approval.project.projectId, notesText)
 
       // Audit log
       await logActivity({
@@ -108,7 +113,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         action: "REJECTED",
         entityType: "approval",
         entityId: id,
-        details: { projectId: approval.projectId, notes },
+        details: { projectId: approval.projectId, notes: notesText },
       })
 
     } else if (action === "reminder") {

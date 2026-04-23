@@ -11,9 +11,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type") || "projects"
+    const projectFilter = session.user.role === "POC" ? { pocId: session.user.id } : {}
 
     if (type === "projects") {
       const projects = await prisma.project.findMany({
+        where: projectFilter,
         include: { poc: { select: { name: true, email: true } }, collaterals: true },
         orderBy: { createdAt: "desc" },
       })
@@ -21,6 +23,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === "dispatch") {
+      if (session.user.role !== "ADMIN") {
+        return NextResponse.json({ error: "Only admins can export dispatch data" }, { status: 403 })
+      }
+
       const dispatches = await prisma.dispatch.findMany({
         include: { project: { select: { projectId: true, name: true, location: true, status: true } } },
         orderBy: { createdAt: "desc" },

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { FileType } from "@prisma/client"
 import { v2 as cloudinary } from "cloudinary"
 import { logActivity } from "@/lib/audit"
+import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -42,13 +43,23 @@ export async function POST(request: NextRequest) {
     const isAdmin = session.user.role === "ADMIN"
     const isOwner = project.pocId === session.user.id
 
-    // PO, Challan, Invoice are admin-only uploads (vendor documents)
+    // PO, challan and invoice are admin-only uploads (vendor documents)
     // POC can only view them, not upload
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: "You can only upload files to your own projects" }, { status: 403 })
     }
-    if (!isAdmin && ["PO", "CHALLAN", "INVOICE"].includes(fileType)) {
-      return NextResponse.json({ error: "Only admins can upload PO, Challan and Invoice documents" }, { status: 403 })
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Only admins can upload project documents" }, { status: 403 })
+    }
+
+    if (fileType === "PO" && !["APPROVED", "PRINTING", "DISPATCHED", "DELIVERED"].includes(project.status)) {
+      return NextResponse.json({ error: "PO can only be uploaded after project approval" }, { status: 400 })
+    }
+    if (fileType === "CHALLAN" && !["DISPATCHED", "DELIVERED"].includes(project.status)) {
+      return NextResponse.json({ error: "Challan can only be uploaded after dispatch" }, { status: 400 })
+    }
+    if (fileType === "INVOICE" && !["DISPATCHED", "DELIVERED"].includes(project.status)) {
+      return NextResponse.json({ error: "Invoice can only be uploaded after dispatch" }, { status: 400 })
     }
 
     // Convert file to base64 for Cloudinary upload
@@ -56,11 +67,13 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     const base64 = `data:${file.type};base64,${buffer.toString("base64")}`
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary with public access
     const uploadResult = await cloudinary.uploader.upload(base64, {
       folder: `axis-print/${projectId}/${fileType.toLowerCase()}`,
       resource_type: "auto",
       public_id: `${fileType.toLowerCase()}_${Date.now()}`,
+      type: "upload",
+      access_mode: "public",
     })
 
     // Save to database
@@ -82,6 +95,9 @@ export async function POST(request: NextRequest) {
       entityId: projectId,
       details: { filename: file.name, size: file.size },
     })
+
+    await pusherServer.trigger(CHANNELS.PROJECTS, EVENTS.PROJECT_UPDATED, { id: projectId })
+    await pusherServer.trigger(CHANNELS.DASHBOARD, EVENTS.STATS_UPDATED, {})
 
     return NextResponse.json({
       id: fileRecord.id,

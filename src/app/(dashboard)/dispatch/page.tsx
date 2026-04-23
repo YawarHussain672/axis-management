@@ -1,17 +1,15 @@
 import { prisma } from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate } from "@/utils/formatters"
 import { Truck } from "lucide-react"
-import { Prisma } from "@prisma/client"
 import { TrackButton } from "@/components/dispatch/track-button"
 import { DispatchHeaderActions } from "@/components/dispatch/dispatch-header-actions"
 import { PodUploadButton } from "@/components/dispatch/pod-upload-button"
-
-type DispatchWithProject = Prisma.DispatchGetPayload<{
-  include: { project: { select: { id: true; projectId: true; name: true; location: true; status: true } } }
-}>
 
 async function getDispatchData() {
   const dispatches = await prisma.dispatch.findMany({
@@ -35,6 +33,11 @@ async function getDispatchData() {
 }
 
 export default async function DispatchPage() {
+  const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== "ADMIN") {
+    redirect("/dashboard")
+  }
+
   const dispatches = await getDispatchData()
 
   return (

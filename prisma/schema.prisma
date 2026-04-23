@@ -15,6 +15,8 @@ model User {
   phone      String?
   password   String
   role       UserRole   @default(POC)
+  location   String?
+  branch     String?
   active     Boolean    @default(true)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -206,4 +208,5 @@ enum FileType {
   PO
   CHALLAN
   INVOICE
+  POD
 }

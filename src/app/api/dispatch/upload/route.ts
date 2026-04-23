@@ -5,9 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { ProjectStatus } from "@prisma/client"
 import * as XLSX from "xlsx"
 import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
-import { sendDispatchNotificationEmail } from "@/lib/email"
 import { logActivity } from "@/lib/audit"
-import { formatDate } from "@/utils/formatters"
 import { notifyProjectDispatched } from "@/lib/notifications"
 
 /**
@@ -20,6 +18,9 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only admins can upload dispatch data" }, { status: 403 })
+    }
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -79,6 +80,12 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      if (project.status !== ProjectStatus.PRINTING && project.status !== ProjectStatus.DISPATCHED) {
+        results.skipped++
+        results.errors.push(`Project ${projectId} must be PRINTING before dispatch upload (current: ${project.status})`)
+        continue
+      }
+
       const parseDate = (val: string): Date | undefined => {
         if (!val) return undefined
         const d = new Date(val)
@@ -110,24 +117,10 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Send dispatch email to POC
         const fullProject = await prisma.project.findUnique({
           where: { id: project.id },
           include: { poc: { select: { id: true, email: true, name: true } } },
         })
-        if (fullProject?.poc) {
-          await sendDispatchNotificationEmail(fullProject.poc.email, {
-            pocName: fullProject.poc.name,
-            projectName: fullProject.name,
-            projectId: fullProject.projectId,
-            courier,
-            trackingId,
-            expectedDelivery: expectedDelivery ? formatDate(expectedDelivery) : "TBD",
-            appUrl: process.env.NEXTAUTH_URL || "http://localhost:3000",
-          })
-        }
-
-        // In-app notification to POC
         if (fullProject?.poc) {
           await notifyProjectDispatched(project.id, fullProject.poc.id, fullProject.name, fullProject.projectId, courier, trackingId)
         }

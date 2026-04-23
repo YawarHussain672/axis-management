@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { redirect } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/utils/formatters"
@@ -18,57 +20,114 @@ import {
   Building2,
   Download,
   ChevronDown,
-  Filter,
 } from "lucide-react"
 import { SpendByLocationChart } from "@/components/analytics/spend-by-location-chart"
 import { StatusBreakdownChart } from "@/components/analytics/status-breakdown-chart"
 import { MonthlyTrendChart } from "@/components/analytics/monthly-trend-chart"
 import { TopCollateralsChart } from "@/components/analytics/top-collaterals-chart"
 
+interface StatusSummary {
+  status: string
+  _count: { id: number }
+  _sum: { totalCost: number }
+}
+
+interface LocationSummary {
+  location: string
+  _count: { id: number }
+  _sum: { totalCost: number }
+}
+
+interface CollateralSummary {
+  itemName: string
+  _count: { id: number }
+  _sum: { totalPrice: number; quantity: number }
+}
+
+interface MonthlyProjectSummary {
+  month: string
+  count: number
+  spend: number
+}
+
+interface BranchPerformance {
+  branch: string
+  campaigns: number
+  leads_generated: number
+  conversions: number
+  marketing_spend: number
+}
+
+interface AnalyticsData {
+  totalProjects: number
+  deliveredProjects: number
+  totalSpend: number
+  avgProjectCost: number
+  deliveryRate: number
+  projectsByStatus: StatusSummary[]
+  projectsByLocation: LocationSummary[]
+  collateralStats: CollateralSummary[]
+  monthlyProjects: MonthlyProjectSummary[]
+  branchData: BranchPerformance[]
+  totalLeadsGenerated: number
+  totalLeadsConverted: number
+  conversionRate: number
+  avgCPL: number
+  avgCPA: number
+}
+
+type AutoTableJsPDF = jsPDF & {
+  lastAutoTable: { finalY: number }
+}
+
 export default function AnalyticsPage() {
-  const [data, setData] = useState<any>(null)
+  const { data: session, status } = useSession()
+  const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [branchFilter, setBranchFilter] = useState("all")
 
-  useEffect(() => {
-    fetchAnalyticsData()
-  }, [])
+  const fetchAnalyticsData = useCallback(async () => {
+    if (status !== "authenticated" || session?.user.role !== "ADMIN") return
 
-  const fetchAnalyticsData = async () => {
     try {
       const res = await fetch("/api/analytics")
       if (res.ok) {
         const analyticsData = await res.json()
         setData(analyticsData)
       }
-    } catch (error) {
+    } catch {
       // Silently handle network errors - component will show loading state
       console.log("Analytics fetch retry pending...")
     } finally {
       setLoading(false)
     }
-  }
+  }, [session?.user.role, status])
 
-  const filteredBranchData = useMemo(() => {
-    if (!data?.branchData) return []
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void fetchAnalyticsData()
+    }, 0)
 
-    return data.branchData.filter((branch: any) => {
-      const leads = Number(branch.leads_generated) || 0
-      const conversions = Number(branch.conversions) || 0
-      const conversionRate = leads > 0 ? (conversions / leads) * 100 : 0
+    return () => window.clearTimeout(timeout)
+  }, [fetchAnalyticsData])
 
-      switch (branchFilter) {
-        case "top":
-          // Top performer: has campaigns and good conversion rate (>10%)
-          return Number(branch.campaigns) > 0 && conversionRate >= 10
-        case "attention":
-          // Need attention: has campaigns but low/no conversion or no leads
-          return Number(branch.campaigns) > 0 && (conversionRate < 10 || leads === 0)
-        default:
-          return true
-      }
-    })
-  }, [data?.branchData, branchFilter])
+  if (status === "unauthenticated") redirect("/login")
+  if (status === "authenticated" && session.user.role !== "ADMIN") redirect("/dashboard")
+
+  const filteredBranchData = data?.branchData.filter((branch) => {
+    const leads = branch.leads_generated || 0
+    const conversions = branch.conversions || 0
+    const conversionRate = leads > 0 ? (conversions / leads) * 100 : 0
+
+    switch (branchFilter) {
+      case "top":
+        return branch.campaigns > 0 && conversionRate >= 10
+      case "attention":
+        return branch.campaigns > 0 && (conversionRate < 10 || leads === 0)
+      default:
+        return true
+    }
+  }) ?? []
 
   const exportBranchData = () => {
     if (!data?.branchData) return
@@ -83,7 +142,7 @@ export default function AnalyticsPage() {
     doc.text(`Generated: ${date}`, 14, 28)
 
     // Table data
-    const tableData = data.branchData.map((branch: any) => {
+    const tableData = data.branchData.map((branch) => {
       const leads = Number(branch.leads_generated) || 0
       const conversions = Number(branch.conversions) || 0
       const campaigns = Number(branch.campaigns) || 0
@@ -156,7 +215,7 @@ export default function AnalyticsPage() {
       alternateRowStyles: { fillColor: [245, 245, 245] },
     })
 
-    currentY = (doc as any).lastAutoTable.finalY + 15
+    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
 
     // Monthly Trends Table
     if (currentY > 250) { doc.addPage(); currentY = 20 }
@@ -180,7 +239,7 @@ export default function AnalyticsPage() {
       alternateRowStyles: { fillColor: [245, 245, 245] },
     })
 
-    currentY = (doc as any).lastAutoTable.finalY + 15
+    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
 
     // Status Breakdown Table
     if (currentY > 250) { doc.addPage(); currentY = 20 }
@@ -204,7 +263,7 @@ export default function AnalyticsPage() {
       alternateRowStyles: { fillColor: [245, 245, 245] },
     })
 
-    currentY = (doc as any).lastAutoTable.finalY + 15
+    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
 
     // Branch Performance Table
     doc.addPage()
@@ -214,7 +273,7 @@ export default function AnalyticsPage() {
     doc.text("Branch-Level Performance", 14, currentY)
     currentY += 8
 
-    const branchData = data.branchData.map((b: any) => {
+    const branchData = data.branchData.map((b) => {
       const leads = Number(b.leads_generated) || 0
       const conversions = Number(b.conversions) || 0
       const campaigns = Number(b.campaigns) || 0
@@ -416,7 +475,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <SpendByLocationChart
-              data={data.projectsByLocation.map((l: any) => ({
+              data={data.projectsByLocation.map((l) => ({
                 location: l.location,
                 count: l._count.id,
                 spend: l._sum.totalCost || 0,
@@ -434,7 +493,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <TopCollateralsChart
-              data={data.collateralStats.map((c: any) => ({
+              data={data.collateralStats.map((c) => ({
                 itemName: c.itemName,
                 count: c._count.id,
                 spend: c._sum.totalPrice || 0,
@@ -495,7 +554,7 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredBranchData.map((branch: any) => {
+                {filteredBranchData.map((branch) => {
                   const leads = Number(branch.leads_generated) || 0
                   const conversions = Number(branch.conversions) || 0
                   const campaigns = Number(branch.campaigns) || 0

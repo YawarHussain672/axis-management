@@ -150,3 +150,23 @@ export async function sendPasswordResetEmail(to: string, data: {
     `),
   })
 }
+
+// Generic sendEmail for simple text notifications
+export async function sendEmail({
+  to,
+  subject,
+  text,
+}: {
+  to: string
+  subject: string
+  text: string
+}) {
+  const resend = getResend()
+  if (!resend) return
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject,
+    text,
+  })
+}

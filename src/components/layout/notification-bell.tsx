@@ -30,19 +30,17 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Fetch notifications function
+  // Fetch notifications function (silent)
   const fetchNotifications = useCallback(async () => {
     try {
-      console.log("[NotificationBell] Fetching notifications...")
       const res = await fetch(`/api/notifications?t=${Date.now()}`, { cache: "no-store" })
       if (res.ok) {
         const data = await res.json()
-        console.log("[NotificationBell] Fetched", data.notifications?.length || 0, "notifications")
         setNotifications(data.notifications || [])
         setUnreadCount(data.unreadCount || 0)
       }
-    } catch (error) {
-      console.error("[NotificationBell] Failed to fetch:", error)
+    } catch {
+      // Silent fail
     }
   }, [])
 
@@ -55,19 +53,22 @@ export function NotificationBell() {
   // Initial fetch + polling fallback
   useEffect(() => {
     fetchNotificationsRef.current()
-    // Poll every 3 seconds as fallback (Pusher WebSocket failing)
-    const interval = setInterval(() => fetchNotificationsRef.current(), 3000)
+    // Poll every 10 seconds as fallback (Pusher WebSocket failing)
+    const interval = setInterval(() => fetchNotificationsRef.current(), 10000)
     return () => clearInterval(interval)
   }, [])
 
-  // Handle real-time delete event (single or all)
-  const handleNotificationDeletedRef = useRef((data: { userId: string; notificationId?: string; allDeleted?: boolean }) => {
+  // Handle real-time delete event (single, all, or project-related)
+  const handleNotificationDeletedRef = useRef((data: { userId: string; notificationId?: string; allDeleted?: boolean; projectDeleted?: boolean }) => {
     if (data.allDeleted) {
       setNotifications([])
       setUnreadCount(0)
     } else if (data.notificationId) {
       setNotifications((prev) => prev.filter((n) => n.id !== data.notificationId))
       setUnreadCount((c) => Math.max(0, c - 1))
+    } else if (data.projectDeleted) {
+      // Project was deleted - refetch to get updated list
+      fetchNotificationsRef.current()
     }
   })
 
@@ -81,12 +82,11 @@ export function NotificationBell() {
     console.log("[NotificationBell] Subscribed to channel:", CHANNELS.NOTIFICATIONS)
 
     // Create stable wrapper that calls the ref (always fresh)
-    const handleNewNotification = () => {
-      console.log("[NotificationBell] Received NOTIFICATION_CREATED event!")
+    const handleNewNotification = (data: unknown) => {
+      console.log("[NotificationBell] Received NOTIFICATION_CREATED event! Data:", data)
       fetchNotificationsRef.current()
     }
-    const handleDelete = (data: { userId: string; notificationId?: string; allDeleted?: boolean }) => {
-      console.log("[NotificationBell] Received NOTIFICATION_DELETED event:", data)
+    const handleDelete = (data: { userId: string; notificationId?: string; allDeleted?: boolean; projectDeleted?: boolean }) => {
       handleNotificationDeletedRef.current(data)
     }
 

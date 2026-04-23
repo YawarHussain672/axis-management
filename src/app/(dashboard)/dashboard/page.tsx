@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatsCard } from "@/components/dashboard/stats-card"
 import { RecentProjectsTable } from "@/components/dashboard/recent-projects-table"
 import { prisma } from "@/lib/prisma"
-import { ProjectStatus } from "@prisma/client"
+import { ProjectStatus, Prisma } from "@prisma/client"
 import Link from "next/link"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
-async function getDashboardStats() {
+async function getDashboardStats(projectFilter: Prisma.ProjectWhereInput) {
   const [
     totalProjects,
     pendingApproval,
@@ -17,18 +19,19 @@ async function getDashboardStats() {
     recentProjects,
     totalLocations,
   ] = await Promise.all([
-    prisma.project.count(),
-    prisma.project.count({ where: { status: ProjectStatus.REQUESTED } }),
-    prisma.project.count({ where: { status: ProjectStatus.PRINTING } }),
-    prisma.project.count({ where: { status: ProjectStatus.DISPATCHED } }),
-    prisma.project.count({ where: { status: ProjectStatus.DELIVERED } }),
-    prisma.project.aggregate({ _sum: { totalCost: true } }),
+    prisma.project.count({ where: projectFilter }),
+    prisma.project.count({ where: { ...projectFilter, status: ProjectStatus.REQUESTED } }),
+    prisma.project.count({ where: { ...projectFilter, status: ProjectStatus.PRINTING } }),
+    prisma.project.count({ where: { ...projectFilter, status: ProjectStatus.DISPATCHED } }),
+    prisma.project.count({ where: { ...projectFilter, status: ProjectStatus.DELIVERED } }),
+    prisma.project.aggregate({ where: projectFilter, _sum: { totalCost: true } }),
     prisma.project.findMany({
+      where: projectFilter,
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { poc: { select: { name: true } } },
     }),
-    prisma.project.groupBy({ by: ["location"] }).then((r) => r.length),
+    prisma.project.groupBy({ by: ["location"], where: projectFilter }).then((r) => r.length),
   ])
 
   return {
@@ -44,7 +47,9 @@ async function getDashboardStats() {
 }
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats()
+  const session = await getServerSession(authOptions)
+  const projectFilter = session?.user.role === "POC" ? { pocId: session.user.id } : {}
+  const stats = await getDashboardStats(projectFilter)
 
   return (
     <div className="space-y-6">

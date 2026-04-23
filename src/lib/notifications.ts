@@ -1,5 +1,6 @@
 import { prisma } from "./prisma"
 import { pusherServer, CHANNELS, EVENTS } from "./pusher"
+import { sendEmail } from "./email"
 
 export async function createNotification(data: {
   userId: string
@@ -43,6 +44,9 @@ export async function notifyProjectRejected(projectId: string, pocId: string, pr
 }
 
 export async function notifyProjectDispatched(projectId: string, pocId: string, projectName: string, projectIdStr: string, courier: string, trackingId: string) {
+  // Get POC email
+  const poc = await prisma.user.findUnique({ where: { id: pocId }, select: { email: true } })
+
   await createNotification({
     userId: pocId,
     title: "Order Dispatched",
@@ -50,13 +54,24 @@ export async function notifyProjectDispatched(projectId: string, pocId: string, 
     type: "dispatch",
     link: `/projects/${projectId}`,
   })
+
+  // Send email
+  if (poc?.email) {
+    await sendEmail({
+      to: poc.email,
+      subject: `Order Dispatched - ${projectIdStr}`,
+      text: `Your order "${projectName}" (${projectIdStr}) has been dispatched via ${courier}. Tracking: ${trackingId}`,
+    })
+  }
 }
 
 export async function notifyAdminsNewApproval(projectId: string, projectName: string, projectIdStr: string, pocName: string) {
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN", active: true },
-    select: { id: true },
+    select: { id: true, email: true },
   })
+
+  // Send in-app notifications
   await Promise.all(admins.map((admin) =>
     createNotification({
       userId: admin.id,
@@ -64,6 +79,15 @@ export async function notifyAdminsNewApproval(projectId: string, projectName: st
       message: `${pocName} has submitted a new project "${projectName}" (${projectIdStr}) for approval.`,
       type: "approval_request",
       link: `/approvals`,
+    })
+  ))
+
+  // Send emails to all admins
+  await Promise.all(admins.filter(a => a.email).map((admin) =>
+    sendEmail({
+      to: admin.email!,
+      subject: `New Approval Request - ${projectIdStr}`,
+      text: `${pocName} has submitted a new project "${projectName}" (${projectIdStr}) for approval.`,
     })
   ))
 }

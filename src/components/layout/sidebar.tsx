@@ -54,7 +54,7 @@ export function Sidebar({ user }: SidebarProps) {
   const mainNav: NavItem[] = [
     { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { label: "All Projects", href: "/projects", icon: <FolderKanban className="h-5 w-5" />, count: counts.totalProjects },
-    { label: "Approvals", href: "/approvals", icon: <CheckCircle className="h-5 w-5" />, count: counts.pendingApprovals },
+    ...(isAdmin ? [{ label: "Approvals", href: "/approvals", icon: <CheckCircle className="h-5 w-5" />, count: counts.pendingApprovals }] : []),
     ...(isAdmin ? [{ label: "Dispatch & Tracking", href: "/dispatch", icon: <Truck className="h-5 w-5" /> }] : []),
   ]
 

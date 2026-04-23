@@ -44,6 +44,8 @@ export default async function TeamPage() {
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Name</TableHead>
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Email</TableHead>
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Phone</TableHead>
+                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Location</TableHead>
+                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Branch</TableHead>
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Role</TableHead>
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Status</TableHead>
                 <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Joined</TableHead>
@@ -63,6 +65,8 @@ export default async function TeamPage() {
                   </TableCell>
                   <TableCell className="text-gray-600">{member.email}</TableCell>
                   <TableCell className="font-mono text-gray-600">{member.phone || "—"}</TableCell>
+                  <TableCell className="text-gray-600">{member.location || "—"}</TableCell>
+                  <TableCell className="text-gray-600">{member.branch || "—"}</TableCell>
                   <TableCell>
                     <Badge variant={member.role === UserRole.ADMIN ? "default" : "approved"} className="text-xs">
                       {member.role}
@@ -78,13 +82,13 @@ export default async function TeamPage() {
                     {new Date(member.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })}
                   </TableCell>
                   <TableCell>
-                    <TeamActions mode="edit" member={{ id: member.id, name: member.name, phone: member.phone || "", role: member.role, active: member.active }} />
+                    <TeamActions mode="edit" member={{ id: member.id, name: member.name, phone: member.phone || "", role: member.role, active: member.active, location: member.location || "", branch: member.branch || "" }} />
                   </TableCell>
                 </TableRow>
               ))}
               {members.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={9} className="text-center py-16 text-gray-400">
                     <Users className="h-12 w-12 mx-auto mb-3 text-gray-200" />
                     <p className="font-medium">No team members yet</p>
                   </TableCell>

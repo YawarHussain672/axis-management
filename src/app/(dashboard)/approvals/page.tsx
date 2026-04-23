@@ -39,6 +39,8 @@ export default async function ApprovalsPage() {
   if (!session) redirect("/login")
 
   const isAdmin = session.user.role === "ADMIN"
+  if (!isAdmin) redirect("/dashboard")
+
   const approvals = await getPendingApprovals(session.user.id, isAdmin)
 
   return (

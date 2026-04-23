@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getUnitPriceFromSlabs } from "@/lib/rate-card-pricing"
 
 export async function GET() {
   try {
@@ -18,10 +19,8 @@ export async function GET() {
       rateCards.map((r) => ({
         id: r.id,
         name: r.itemName,
-        defaultPrice: (() => {
-          const slabs = r.volumeSlabs as { slab: string; price: number }[]
-          return slabs?.[0]?.price || 0
-        })(),
+        volumeSlabs: r.volumeSlabs,
+        defaultPrice: getUnitPriceFromSlabs(r.volumeSlabs, 1) ?? 0,
       }))
     )
   } catch (error) {

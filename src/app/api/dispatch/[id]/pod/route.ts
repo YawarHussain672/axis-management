@@ -65,6 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     await pusherServer.trigger(CHANNELS.DISPATCH, EVENTS.DISPATCH_UPDATED, { id })
+    await pusherServer.trigger(CHANNELS.PROJECTS, EVENTS.PROJECT_UPDATED, { projectId: dispatch.projectId })
 
     return NextResponse.json({ url: result.secure_url })
   } catch (error) {

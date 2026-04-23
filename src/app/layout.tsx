@@ -3,6 +3,7 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { validateEnv } from "@/lib/env";
+import { SessionProvider } from "@/components/providers/session-provider";
 
 // Validate env vars at startup — will throw in dev, log in prod
 try { validateEnv() } catch (e) { console.error((e as Error).message) }
@@ -34,10 +35,12 @@ export default function RootLayout({
       lang="en"
       className={`${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
-        {children}
-        <Toaster />
-      </body>
+      <SessionProvider>
+        <body className="min-h-full flex flex-col font-sans">
+          {children}
+          <Toaster />
+        </body>
+      </SessionProvider>
     </html>
   );
 }

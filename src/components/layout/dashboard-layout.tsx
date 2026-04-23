@@ -14,7 +14,7 @@ export function DashboardLayout({ children, user }: DashboardLayoutProps) {
     <div className="min-h-screen bg-slate-50/50">
       <Sidebar user={user} />
       <div className="ml-64">
-        <TopBar />
+        <TopBar user={user} />
         <main className="p-6">
           {children}
         </main>

@@ -8,7 +8,11 @@ import { toast } from "sonner"
 import { useDebouncedCallback } from "use-debounce"
 import { NotificationBell } from "@/components/layout/notification-bell"
 
-export function TopBar() {
+interface TopBarProps {
+  user?: { role: string }
+}
+
+export function TopBar({ user }: TopBarProps) {
   const router = useRouter()
   const [exporting, setExporting] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -17,6 +21,7 @@ export function TopBar() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searching, setSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const isAdmin = user?.role === "ADMIN"
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -249,13 +254,13 @@ export function TopBar() {
                 onClick={() => { router.push(`/projects?search=${encodeURIComponent(searchQuery)}`); setSearchOpen(false) }}
                 className="w-full text-left px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 font-medium transition-colors"
               >
-                See all results for "{searchQuery}" →
+                See all results for &quot;{searchQuery}&quot; →
               </button>
             </div>
           )}
           {searchOpen && searchQuery && searchResults.length === 0 && !searching && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 px-4 py-3 text-sm text-slate-400">
-              No projects found for "{searchQuery}"
+              No projects found for &quot;{searchQuery}&quot;
             </div>
           )}
         </div>
@@ -292,16 +297,18 @@ export function TopBar() {
                     <p className="text-xs text-slate-400">All projects with costs</p>
                   </div>
                 </button>
-                <button
-                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                  onClick={() => handleExport("dispatch")}
-                >
-                  <span className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center text-base shrink-0">🚚</span>
-                  <div>
-                    <p className="font-medium">Dispatch Report</p>
-                    <p className="text-xs text-slate-400">Tracking & delivery info</p>
-                  </div>
-                </button>
+                {isAdmin && (
+                  <button
+                    className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                    onClick={() => handleExport("dispatch")}
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center text-base shrink-0">🚚</span>
+                    <div>
+                      <p className="font-medium">Dispatch Report</p>
+                      <p className="text-xs text-slate-400">Tracking & delivery info</p>
+                    </div>
+                  </button>
+                )}
               </div>
             </>
           )}
