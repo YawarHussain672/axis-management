@@ -44,18 +44,33 @@ export function DispatchHeaderActions() {
       formData.append("file", file)
 
       const res = await fetch("/api/dispatch/upload", { method: "POST", body: formData })
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        console.error("Dispatch upload server response:", text)
+        toast.error(res.statusText || "Upload failed")
+        return
+      }
 
       if (res.ok) {
         setUploadResult(data)
         setShowResult(true)
-        toast.success(data.message)
+        if (data.errors && data.errors.length > 0) {
+          // Show warning if some rows had errors
+          toast.warning(`${data.message} (with ${data.errors.length} error${data.errors.length > 1 ? 's' : ''})`)
+        } else {
+          toast.success(data.message)
+        }
         router.refresh()
       } else {
-        toast.error(data.error || "Upload failed")
+        const errorMsg = data.details || data.error || "Upload failed"
+        toast.error(errorMsg)
+        console.error("Dispatch upload error:", data)
       }
-    } catch {
-      toast.error("Network error. Please try again.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error. Please try again.")
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -100,17 +115,17 @@ export function DispatchHeaderActions() {
         courier: string; trackingId: string; dispatchDate?: string
         expectedDelivery?: string; actualDelivery?: string; status: string; notes?: string
       }) => [
-        d.project.projectId,
-        d.project.name.length > 28 ? d.project.name.slice(0, 28) + "…" : d.project.name,
-        d.project.location,
-        d.courier,
-        d.trackingId,
-        d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
-        d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
-        d.actualDelivery ? new Date(d.actualDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
-        d.project.status,
-        d.notes || "—",
-      ])
+          d.project.projectId,
+          d.project.name.length > 28 ? d.project.name.slice(0, 28) + "…" : d.project.name,
+          d.project.location,
+          d.courier,
+          d.trackingId,
+          d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
+          d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
+          d.actualDelivery ? new Date(d.actualDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
+          d.project.status,
+          d.notes || "—",
+        ])
 
       autoTable(doc, {
         head, body,

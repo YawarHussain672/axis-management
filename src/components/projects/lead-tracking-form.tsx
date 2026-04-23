@@ -16,10 +16,11 @@ interface LeadTrackingFormProps {
   leadsGenerated: number | null
   leadsConverted: number | null
   canEdit: boolean
+  onSuccess?: () => void
 }
 
 export function LeadTrackingForm({
-  projectId, totalCost, leadsGenerated, leadsConverted, canEdit
+  projectId, totalCost, leadsGenerated, leadsConverted, canEdit, onSuccess
 }: LeadTrackingFormProps) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
@@ -51,6 +52,7 @@ export function LeadTrackingForm({
       if (res.ok) {
         toast.success("Lead data saved!")
         setEditing(false)
+        onSuccess?.()
         router.refresh()
       } else {
         const data = await res.json()

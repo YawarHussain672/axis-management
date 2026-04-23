@@ -63,9 +63,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // PUT /api/projects/[id]
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  console.log("[PROJECT UPDATE API] PUT request received")
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session?.user?.id) {
+      console.log("[PROJECT UPDATE API] Unauthorized - no session")
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Verify user exists in database
+    console.log("[PROJECT UPDATE API] Checking user:", session.user.id)
+    const userExists = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true }
+    })
+    if (!userExists) {
+      console.error("[PROJECT UPDATE API] User not found in database:", session.user.id)
+      return NextResponse.json({ error: "User session invalid", details: "Please log out and log in again" }, { status: 401 })
+    }
+    console.log("[PROJECT UPDATE API] User verified")
 
     const { id } = await params
     const body = await request.json()
@@ -186,8 +202,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await pusherServer.trigger(CHANNELS.DASHBOARD, EVENTS.STATS_UPDATED, {})
     return NextResponse.json(project)
   } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: "Failed to update project" }, { status: 500 })
+    console.error("[PROJECT UPDATE API] Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Failed to update project"
+    return NextResponse.json({ error: "Failed to update project", details: errorMessage }, { status: 500 })
   }
 }
 

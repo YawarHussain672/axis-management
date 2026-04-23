@@ -8,13 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatDate, formatCurrency, getGSTAmount } from "@/utils/formatters"
-import { ProjectStatus } from "@prisma/client"
+import { ProjectStatus, FileType } from "@prisma/client"
 import { UpdateStatusButton } from "@/components/projects/update-status-button"
 import { FileUploadButton } from "@/components/projects/file-upload-button"
 import { DeleteProjectButton } from "@/components/projects/delete-project-button"
 import { LeadTrackingForm } from "@/components/projects/lead-tracking-form"
 import { TrackButton } from "@/components/dispatch/track-button"
 import { EditDispatchDialog } from "@/components/dispatch/edit-dispatch-dialog"
+import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
 import {
   ArrowLeft, Edit, MapPin, Calendar, User, FileText,
   Truck, Package, CheckCircle, Clock, XCircle, Building2,
@@ -46,6 +47,7 @@ interface Project {
   branch: string
   totalCost: number
   deliveryDate: string | null
+  instructions: string | null
   poc: { id: string; name: string; email: string; phone: string }
   collaterals: { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[]
   statusHistory: { id: string; status: ProjectStatus; note: string | null; timestamp: string }[]
@@ -56,6 +58,12 @@ interface Project {
     trackingId: string
     expectedDelivery: string | null
     actualDelivery: string | null
+  } | null
+  approval: {
+    status: string
+    requestedById: string
+    approvedById: string | null
+    approvedAt: string | null
   } | null
   leadsGenerated: number | null
   leadsConverted: number | null
@@ -74,13 +82,16 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const { id } = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
   const [project, setProject] = useState<Project | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
       redirect("/login")
     }
     if (status === "authenticated" && id) {
+      setLoading(true)
       fetch(`/api/projects/${id}`)
         .then((res) => {
           if (!res.ok) {
@@ -93,6 +104,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           if (data) setProject(data)
         })
         .catch(() => setProject(null))
+        .finally(() => setLoading(false))
     }
   }, [id, router, status])
 
@@ -106,63 +118,72 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const isAdmin = session?.user?.role === "ADMIN"
   const isOwner = project?.pocId === session?.user?.id
 
-  // Timeline steps with real notes - only computed when project is loaded
+  // Timeline steps with real data
   const timelineSteps = project ? [
     {
       title: "Order Received",
       date: project.createdAt,
-      note: `Project created by ${project.poc?.name}`,
+      note: `Project created by ${project.poc?.name}${project.branch ? ` • ${project.branch}` : ""}`,
       done: true,
     },
     {
       title: "PI Created",
       date: project.createdAt,
-      note: `Proforma Invoice #${project.piNumber || project.projectId} generated`,
+      note: `Proforma Invoice #${project.piNumber || project.projectId} generated • ${project.poc?.name}`,
       done: true,
     },
     {
       title: "PI Approved",
       date: getStatusHistory(ProjectStatus.APPROVED)?.timestamp ?? null,
-      note: getStatusHistory(ProjectStatus.APPROVED)?.note || "Proforma Invoice approved by management",
-      done: !!getStatusHistory(ProjectStatus.APPROVED),
+      note: (() => {
+        const approval = getStatusHistory(ProjectStatus.APPROVED)
+        if (approval?.note) {
+          return `Approved • ${approval.note}`
+        }
+        return project.approval?.status === "APPROVED" ? "Approved by Admin" : "Pending approval"
+      })(),
+      done: !!getStatusHistory(ProjectStatus.APPROVED) || project.approval?.status === "APPROVED",
       active: project.status === ProjectStatus.REQUESTED,
+    },
+    {
+      title: "PO Generated",
+      date: project.files.find((f) => f.type === FileType.PO)?.uploadedAt ?? null,
+      note: project.files.some((f) => f.type === FileType.PO) ? "Purchase Order received from client" : "Pending PO",
+      done: project.files.some((f) => f.type === FileType.PO),
+      active: project.status === ProjectStatus.APPROVED,
     },
     {
       title: "Material Under Production",
       date: getStatusHistory(ProjectStatus.PRINTING)?.timestamp ?? null,
       note: getStatusHistory(ProjectStatus.PRINTING)?.note || "Production in progress",
       done: !!getStatusHistory(ProjectStatus.PRINTING),
-      active: project.status === ProjectStatus.APPROVED,
+      active: project.status === ProjectStatus.APPROVED && project.files.some((f) => f.type === FileType.PO),
     },
     {
       title: "Material Dispatched",
       date: project.dispatch?.dispatchDate ?? null,
-      note: project.dispatch
-        ? `Shipped via ${project.dispatch.courier}${project.dispatch.trackingId ? ` - Tracking: ${project.dispatch.trackingId}` : ""}`
-        : "Pending dispatch",
+      note: (() => {
+        if (!project.dispatch) return "Pending dispatch"
+        const dispatchInfo = `Shipped via ${project.dispatch.courier}`
+        const tracking = project.dispatch.trackingId ? ` • Tracking: ${project.dispatch.trackingId}` : ""
+        return dispatchInfo + tracking
+      })(),
       done: !!project.dispatch?.dispatchDate,
       active: project.status === ProjectStatus.PRINTING,
     },
     {
-      title: "PO Generated",
-      date: project.files.find((f) => f.type === "PO")?.uploadedAt ?? null,
-      note: "Purchase Order received from client",
-      done: project.files.some((f) => f.type === "PO"),
-      active: project.status === ProjectStatus.APPROVED,
-    },
-    {
       title: "Challan Uploaded",
-      date: project.files.find((f) => f.type === "CHALLAN")?.uploadedAt ?? null,
-      note: project.files.find((f) => f.type === "CHALLAN") ? "Delivery challan uploaded" : "Pending",
-      done: project.files.some((f) => f.type === "CHALLAN"),
+      date: project.files.find((f) => f.type === FileType.CHALLAN)?.uploadedAt ?? null,
+      note: project.files.some((f) => f.type === FileType.CHALLAN) ? "Delivery challan uploaded" : "Pending challan",
+      done: project.files.some((f) => f.type === FileType.CHALLAN),
       active: project.status === ProjectStatus.DISPATCHED,
     },
     {
       title: "Tax Invoice Generated",
-      date: project.files?.find((f) => f.type === "INVOICE")?.uploadedAt ?? null,
-      note: project.files?.find((f) => f.type === "INVOICE") ? "Tax invoice generated" : "Pending",
-      done: !!project.files?.find((f) => f.type === "INVOICE"),
-      active: project.status === ProjectStatus.DELIVERED,
+      date: project.files.find((f) => f.type === FileType.INVOICE)?.uploadedAt ?? null,
+      note: project.files.some((f) => f.type === FileType.INVOICE) ? "Tax invoice generated" : "Pending invoice",
+      done: project.files.some((f) => f.type === FileType.INVOICE),
+      active: project.status === ProjectStatus.DISPATCHED,
     },
   ] : []
 
@@ -215,11 +236,9 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             <div className="flex items-center gap-2">
               {(isAdmin || (isOwner && project.status === "REQUESTED")) && (
                 <>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/projects/${project.id}/edit`}>
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Link>
+                  <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
+                    <Edit className="h-4 w-4 mr-1" />
+                    Edit
                   </Button>
                   {isAdmin && <UpdateStatusButton projectId={project.id} currentStatus={project.status} />}
                   <DeleteProjectButton projectId={project.id} />
@@ -317,6 +336,11 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
               leadsGenerated={project.leadsGenerated}
               leadsConverted={project.leadsConverted}
               canEdit={isAdmin || isOwner}
+              onSuccess={() => {
+                fetch(`/api/projects/${id}`)
+                  .then((res) => res.json())
+                  .then((data) => setProject(data))
+              }}
             />
           )}
 
@@ -442,6 +466,20 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           </Card>
         </div>
       </div>
+
+      {/* Edit Project Dialog */}
+      {project && (
+        <EditProjectDialog
+          project={project}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSuccess={() => {
+            fetch(`/api/projects/${id}`)
+              .then((res) => res.json())
+              .then((data) => setProject(data))
+          }}
+        />
+      )}
     </div>
   )
 }

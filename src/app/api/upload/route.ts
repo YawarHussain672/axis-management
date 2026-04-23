@@ -17,8 +17,14 @@ cloudinary.config({
 // Body: FormData with fields: file (File), projectId (string), fileType (PO | CHALLAN | INVOICE)
 export async function POST(request: NextRequest) {
   try {
+    console.log("[Upload API] Request received:", request.headers.get("content-type"))
+
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session) {
+      console.log("[Upload API] No session found")
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    console.log("[Upload API] User:", session.user.id, "Role:", session.user.role)
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -63,9 +69,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert file to base64 for Cloudinary upload
+    console.log("[Upload API] Processing file:", file.name, "Type:", file.type, "Size:", file.size)
+
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const base64 = `data:${file.type};base64,${buffer.toString("base64")}`
+    console.log("[Upload API] Converted to base64, uploading to Cloudinary...")
 
     // Upload to Cloudinary with public access
     const uploadResult = await cloudinary.uploader.upload(base64, {
@@ -75,6 +84,8 @@ export async function POST(request: NextRequest) {
       type: "upload",
       access_mode: "public",
     })
+
+    console.log("[Upload API] Cloudinary upload success:", uploadResult.secure_url)
 
     // Save to database
     const fileRecord = await prisma.fileUpload.create({
@@ -106,7 +117,8 @@ export async function POST(request: NextRequest) {
       size: file.size,
     }, { status: 201 })
   } catch (error) {
-    console.error("Upload error:", error)
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 })
+    console.error("[Upload API] Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Upload failed"
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

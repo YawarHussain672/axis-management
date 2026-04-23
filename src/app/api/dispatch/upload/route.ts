@@ -15,9 +15,10 @@ import { notifyProjectDispatched } from "@/lib/notifications"
  * POST /api/dispatch/upload
  */
 export async function POST(request: NextRequest) {
+  console.log("[DISPATCH UPLOAD] Starting upload process...")
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Only admins can upload dispatch data" }, { status: 403 })
     }
@@ -32,40 +33,94 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Only Excel (.xlsx, .xls) or CSV files are supported" }, { status: 400 })
     }
 
-    // Parse Excel
+    console.log(`[DISPATCH UPLOAD] Processing file: ${file.name} (${file.size} bytes)`)
+
+    // Parse Excel with better options
     const buffer = Buffer.from(await file.arrayBuffer())
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true })
+    const workbook = XLSX.read(buffer, {
+      type: "buffer",
+      cellDates: true,
+      raw: false,
+      dateNF: 'yyyy-mm-dd'
+    })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" })
+
+    // Log sheet info
+    console.log("[DISPATCH UPLOAD] Sheet name:", workbook.SheetNames[0])
+    console.log("[DISPATCH UPLOAD] Sheet range:", sheet['!ref'])
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: "",
+      raw: false,
+      dateNF: 'yyyy-mm-dd'
+    })
+
+    console.log(`[DISPATCH UPLOAD] Parsed ${rows.length} rows`)
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "Excel file is empty" }, { status: 400 })
+      return NextResponse.json({ error: "Excel file is empty or has no data rows" }, { status: 400 })
     }
 
-    // Normalize column names
-    const normalize = (key: string) => key.toLowerCase().replace(/[\s_-]/g, "")
+    // Log first row to debug column names
+    if (rows.length > 0) {
+      console.log("[DISPATCH UPLOAD] First row columns:", Object.keys(rows[0]))
+      console.log("[DISPATCH UPLOAD] First row data:", rows[0])
+    }
+
+    // Normalize column names - more robust
+    const normalize = (key: string) => {
+      if (!key || typeof key !== 'string') return ''
+      return key.toString().toLowerCase().replace(/[\s_.\-#]/g, "")
+    }
 
     const results = { created: 0, updated: 0, skipped: 0, errors: [] as string[] }
 
-    for (const row of rows) {
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex]
+
+      // Log all columns for this row to debug
+      if (rowIndex === 0) {
+        console.log("[DISPATCH UPLOAD] All columns in row 1:")
+        Object.keys(row).forEach(k => {
+          console.log(`  - "${k}" (normalized: "${normalize(k)}") = "${row[k]}"`)
+        })
+      }
+
+      // More robust value getter
       const get = (keys: string[]) => {
         for (const k of Object.keys(row)) {
-          if (keys.includes(normalize(k))) return String(row[k] || "").trim()
+          const normalizedKey = normalize(k)
+          if (keys.includes(normalizedKey)) {
+            const val = row[k]
+            // Handle different value types
+            if (val === null || val === undefined) return ""
+            if (typeof val === 'string') return val.trim()
+            if (typeof val === 'number') return val.toString()
+            if (val instanceof Date) return val.toISOString()
+            return String(val).trim()
+          }
         }
         return ""
       }
 
-      const projectId = get(["projectid", "project_id", "projectno"])
-      const courier = get(["courier", "couriername", "carrier"])
-      const trackingId = get(["trackingid", "tracking_id", "awb", "awbno", "docketno"])
-      const trackingUrl = get(["trackingurl", "tracking_url", "trackinglink"])
-      const dispatchDateRaw = get(["dispatchdate", "dispatch_date", "shippeddate"])
-      const expectedDeliveryRaw = get(["expecteddelivery", "expected_delivery", "edd", "deliverydate"])
-      const notes = get(["notes", "remarks", "comments"])
+      const projectId = get(["projectid", "project_id", "projectno", "project#", "id"])
+      const courier = get(["courier", "couriername", "carrier", "couriercompany"])
+      const trackingId = get(["trackingid", "tracking_id", "awb", "awbno", "docketno", "trackingnumber"])
+      const trackingUrl = get(["trackingurl", "tracking_url", "trackinglink", "url", "link"])
+      const dispatchDateRaw = get(["dispatchdate", "dispatch_date", "shippeddate", "dispatchon", "shippedon"])
+      const expectedDeliveryRaw = get(["expecteddelivery", "expected_delivery", "edd", "deliverydate", "expecteddate", "deliveryon"])
+      const notes = get(["notes", "remarks", "comments", "note"])
+
+      console.log(`[DISPATCH UPLOAD] Row ${rowIndex + 1}: projectId="${projectId}", courier="${courier}", trackingId="${trackingId}"`)
 
       if (!projectId || !courier || !trackingId) {
         results.skipped++
-        if (projectId) results.errors.push(`Row skipped: ${projectId} — missing courier or tracking ID`)
+        const missing = [!projectId && "Project ID", !courier && "Courier", !trackingId && "Tracking ID"].filter(Boolean).join(", ")
+        if (projectId) {
+          results.errors.push(`Row ${rowIndex + 1} (${projectId}): Missing ${missing}`)
+        } else {
+          results.errors.push(`Row ${rowIndex + 1}: Missing Project ID`)
+        }
         continue
       }
 
@@ -86,14 +141,41 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      // Better date parsing
       const parseDate = (val: string): Date | undefined => {
-        if (!val) return undefined
+        if (!val || val === "") return undefined
+
+        // Try parsing as Excel date serial number
+        if (!isNaN(Number(val))) {
+          const excelDate = XLSX.SSF.parse_date_code(Number(val))
+          if (excelDate) {
+            return new Date(excelDate.y, excelDate.m - 1, excelDate.d)
+          }
+        }
+
+        // Try standard date parsing
         const d = new Date(val)
-        return isNaN(d.getTime()) ? undefined : d
+        if (!isNaN(d.getTime())) return d
+
+        // Try DD/MM/YYYY format
+        const parts = val.split(/[/\-.]/)
+        if (parts.length === 3) {
+          const [p1, p2, p3] = parts.map(Number)
+          // Try DD/MM/YYYY
+          let tryDate = new Date(p3, p2 - 1, p1)
+          if (!isNaN(tryDate.getTime())) return tryDate
+          // Try MM/DD/YYYY
+          tryDate = new Date(p3, p1 - 1, p2)
+          if (!isNaN(tryDate.getTime())) return tryDate
+        }
+
+        return undefined
       }
 
       const dispatchDate = parseDate(dispatchDateRaw)
       const expectedDelivery = parseDate(expectedDeliveryRaw)
+
+      console.log(`[DISPATCH UPLOAD] Row ${rowIndex + 1} dates: dispatchDate="${dispatchDateRaw}" → ${dispatchDate || 'invalid'}, expectedDelivery="${expectedDeliveryRaw}" → ${expectedDelivery || 'invalid'}`)
 
       // Upsert dispatch
       const existing = await prisma.dispatch.findUnique({ where: { projectId: project.id } })
@@ -151,7 +233,11 @@ export async function POST(request: NextRequest) {
       ...results,
     })
   } catch (error) {
-    console.error("Dispatch upload error:", error)
-    return NextResponse.json({ error: "Failed to process file" }, { status: 500 })
+    console.error("[DISPATCH UPLOAD] Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Failed to process file"
+    return NextResponse.json({
+      error: "Failed to process dispatch upload",
+      details: errorMessage
+    }, { status: 500 })
   }
 }

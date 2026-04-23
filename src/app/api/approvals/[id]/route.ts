@@ -12,22 +12,67 @@ import { notifyProjectApproved, notifyProjectRejected } from "@/lib/notification
 const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  console.log("[APPROVALS API] POST request received")
   try {
     const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    console.log("[APPROVALS API] Session:", session?.user?.id ? `User ${session.user.id}` : "No session")
+
+    if (!session?.user?.id) {
+      console.log("[APPROVALS API] Unauthorized - no session")
+      return NextResponse.json({ error: "Unauthorized", details: "Please log in again" }, { status: 401 })
+    }
 
     const { id } = await params
-    const { action, notes } = await request.json()
+    console.log("[APPROVALS API] Approval ID:", id)
+    console.log("[APPROVALS API] User ID from session:", session.user.id)
+
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
+
+    const { action, notes } = body
     const notesText = typeof notes === "string" ? notes.trim() : ""
 
-    const approval = await prisma.approval.findUnique({
-      where: { id },
-      include: {
-        project: { include: { poc: true } },
-        requestedBy: true,
-      },
+    if (!action || !["approve", "reject", "reminder"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    }
+
+    // Verify the user exists in database
+    console.log("[APPROVALS API] Checking if user exists:", session.user.id)
+    const userExists = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true }
     })
-    if (!approval) return NextResponse.json({ error: "Approval not found" }, { status: 404 })
+
+    console.log("[APPROVALS API] User exists check result:", userExists ? "FOUND" : "NOT FOUND")
+
+    if (!userExists) {
+      console.error("[APPROVALS API] User not found in database:", session.user.id)
+      return NextResponse.json({ error: "User session invalid", details: "Please log out and log in again" }, { status: 401 })
+    }
+
+    console.log("[APPROVALS API] User verified, proceeding with action:", action)
+
+    // Get approval with project details
+    let approval
+    try {
+      approval = await prisma.approval.findUnique({
+        where: { id },
+        include: {
+          project: { include: { poc: true } },
+        },
+      })
+    } catch (dbError) {
+      console.error("Database error fetching approval:", dbError)
+      return NextResponse.json({ error: "Database error", details: dbError instanceof Error ? dbError.message : String(dbError) }, { status: 500 })
+    }
+
+    if (!approval) {
+      return NextResponse.json({ error: "Approval not found" }, { status: 404 })
+    }
 
     if (action === "approve" || action === "reject" || action === "reminder") {
       if (session.user.role !== "ADMIN") {
@@ -36,21 +81,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (action === "approve") {
-      await prisma.$transaction([
-        prisma.approval.update({
-          where: { id },
-          data: { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date(), notes: notesText || undefined },
-        }),
-        prisma.project.update({
-          where: { id: approval.projectId },
-          data: {
-            status: ProjectStatus.APPROVED,
-            statusHistory: {
-              create: { status: ProjectStatus.APPROVED, note: notesText || "Approved", changedById: session.user.id },
+      try {
+        await prisma.$transaction([
+          prisma.approval.update({
+            where: { id },
+            data: { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date(), notes: notesText || undefined },
+          }),
+          prisma.project.update({
+            where: { id: approval.projectId },
+            data: {
+              status: ProjectStatus.APPROVED,
+              statusHistory: {
+                create: { status: ProjectStatus.APPROVED, note: notesText || "Approved", changedById: session.user.id },
+              },
             },
-          },
-        }),
-      ])
+          }),
+        ])
+      } catch (txError) {
+        console.error("Transaction error during approve:", txError)
+        return NextResponse.json({ error: "Database transaction failed", details: txError instanceof Error ? txError.message : String(txError) }, { status: 500 })
+      }
 
       // Send approval email to POC
       await sendProjectApprovedEmail(approval.project.poc.email, {
@@ -79,21 +129,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 })
       }
 
-      await prisma.$transaction([
-        prisma.approval.update({
-          where: { id },
-          data: { status: "REJECTED", approvedById: session.user.id, rejectedAt: new Date(), notes: notesText },
-        }),
-        prisma.project.update({
-          where: { id: approval.projectId },
-          data: {
-            status: ProjectStatus.CANCELLED,
-            statusHistory: {
-              create: { status: ProjectStatus.CANCELLED, note: notesText, changedById: session.user.id },
+      try {
+        await prisma.$transaction([
+          prisma.approval.update({
+            where: { id },
+            data: { status: "REJECTED", approvedById: session.user.id, rejectedAt: new Date(), notes: notesText },
+          }),
+          prisma.project.update({
+            where: { id: approval.projectId },
+            data: {
+              status: ProjectStatus.CANCELLED,
+              statusHistory: {
+                create: { status: ProjectStatus.CANCELLED, note: notesText, changedById: session.user.id },
+              },
             },
-          },
-        }),
-      ])
+          }),
+        ])
+      } catch (txError) {
+        console.error("Transaction error during reject:", txError)
+        return NextResponse.json({ error: "Database transaction failed", details: txError instanceof Error ? txError.message : String(txError) }, { status: 500 })
+      }
 
       // Send rejection email to POC
       await sendProjectRejectedEmail(approval.project.poc.email, {
@@ -133,7 +188,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           adminName: admin.name,
           projectName: approval.project.name,
           projectId: approval.project.projectId,
-          pocName: approval.requestedBy.name,
+          pocName: approval.project.poc.name,
           totalCost: formatCurrency(approval.project.totalCost),
           reminderCount: updated.reminderCount,
           appUrl: APP_URL,
@@ -156,7 +211,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: "Failed to process approval" }, { status: 500 })
+    console.error("Approval action error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    return NextResponse.json({ error: "Failed to process approval", details: errorMessage }, { status: 500 })
   }
 }

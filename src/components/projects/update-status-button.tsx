@@ -75,15 +75,21 @@ export function UpdateStatusButton({ projectId, currentStatus }: UpdateStatusBut
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update status")
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+        const message = errorData.details || errorData.error || `Failed to update status (${response.status})`
+        toast.error(message)
+        console.log("Status update failed:", message)
+        setIsLoading(false)
+        return
       }
 
       toast.success(`Status updated to ${statusLabels[selectedStatus]}`)
       setOpen(false)
       router.refresh()
     } catch (error) {
-      toast.error("Failed to update status")
-      console.error(error)
+      const message = error instanceof Error ? error.message : "Failed to update status"
+      toast.error(message)
+      console.log("Status update error:", message)
     } finally {
       setIsLoading(false)
     }

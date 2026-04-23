@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, Upload, Loader2, ExternalLink } from "lucide-react"
+import { Upload, Loader2, Download, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 
 interface PodUploadButtonProps {
@@ -38,11 +38,19 @@ export function PodUploadButton({ dispatchId, podUrl }: PodUploadButtonProps) {
         toast.success("POD uploaded successfully!")
         router.refresh()
       } else {
-        const data = await res.json()
-        toast.error(data.error || "Upload failed")
+        const text = await res.text()
+        let errorMessage = "Upload failed"
+        try {
+          const data = JSON.parse(text)
+          errorMessage = data.error || "Upload failed"
+        } catch {
+          errorMessage = res.statusText || "Upload failed"
+          console.error("POD upload server response:", text)
+        }
+        toast.error(errorMessage)
       }
-    } catch {
-      toast.error("Network error")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Network error")
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ""
@@ -51,16 +59,35 @@ export function PodUploadButton({ dispatchId, podUrl }: PodUploadButtonProps) {
 
   if (podUrl) {
     return (
-      <a
-        href={podUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1.5 text-green-600 hover:text-green-700 font-semibold text-sm"
-      >
-        <FileText className="h-4 w-4" />
-        View POD
-        <ExternalLink className="h-3 w-3" />
-      </a>
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-1.5 text-green-600 font-semibold text-sm">
+          <CheckCircle className="h-4 w-4" />
+          Available
+        </span>
+        <button
+          onClick={async () => {
+            try {
+              const res = await fetch(`/api/dispatch/${dispatchId}/pod/view`)
+              if (!res.ok) throw new Error("Download failed")
+              const blob = await res.blob()
+              const url = window.URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url
+              a.download = `POD_${dispatchId}.pdf`
+              document.body.appendChild(a)
+              a.click()
+              window.URL.revokeObjectURL(url)
+              document.body.removeChild(a)
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Download failed")
+            }
+          }}
+          className="flex items-center gap-1 text-slate-500 hover:text-slate-700 text-sm"
+          title="Download POD"
+        >
+          <Download className="h-4 w-4" />
+        </button>
+      </div>
     )
   }
 

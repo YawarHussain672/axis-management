@@ -28,6 +28,19 @@ export function ApprovalActions({ approvalId, reminderCount, isAdmin }: Approval
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, notes }),
       })
+
+      // Log the raw response for debugging
+      const responseText = await res.text()
+      console.log("Raw API response:", responseText)
+      console.log("HTTP Status:", res.status, res.statusText)
+
+      let data
+      try {
+        data = responseText ? JSON.parse(responseText) : {}
+      } catch {
+        data = { error: "Invalid JSON response", rawResponse: responseText.substring(0, 500) }
+      }
+
       if (res.ok) {
         const messages = { approve: "Project approved!", reject: "Project rejected", reminder: "Reminder sent" }
         toast.success(messages[action])
@@ -35,10 +48,12 @@ export function ApprovalActions({ approvalId, reminderCount, isAdmin }: Approval
         setRejectReason("")
         router.refresh()
       } else {
-        toast.error("Action failed")
+        toast.error(data.details || data.error || `Action failed (${res.status})`)
+        console.error("Approval API error:", data)
       }
-    } catch {
-      toast.error("Something went wrong")
+    } catch (err) {
+      toast.error("Network error. Please try again.")
+      console.error("Network error:", err)
     } finally {
       setLoading(null)
     }

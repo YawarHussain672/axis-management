@@ -9,20 +9,23 @@ datasource db {
 }
 
 model User {
-  id         String     @id @default(cuid())
-  email      String     @unique
-  name       String
-  phone      String?
-  password   String
-  role       UserRole   @default(POC)
-  location   String?
-  branch     String?
-  active     Boolean    @default(true)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  activities Activity[]
-  approvals  Approval[]
-  projects   Project[]
+  id                String          @id @default(cuid())
+  email             String          @unique
+  name              String
+  phone             String?
+  password          String
+  role              UserRole        @default(POC)
+  location          String?
+  branch            String?
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime       @updatedAt
+  activities        Activity[]
+  projects          Project[]
+  fileUploads       FileUpload[]
+  statusChanges     StatusHistory[]
+  approvalsRequested Approval[]   @relation("approvalRequestedBy")
+  approvalsMade      Approval[]    @relation("approvalApprovedBy")
 
   @@map("users")
 }
@@ -75,6 +78,7 @@ model StatusHistory {
   timestamp   DateTime      @default(now())
   changedById String?
   project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changedBy   User?         @relation(fields: [changedById], references: [id])
 
   @@map("status_history")
 }
@@ -89,6 +93,7 @@ model FileUpload {
   uploadedAt   DateTime @default(now())
   uploadedById String?
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
 
   @@map("file_uploads")
 }
@@ -106,7 +111,8 @@ model Approval {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  requestedBy   User           @relation(fields: [requestedById], references: [id])
+  requestedBy   User           @relation("approvalRequestedBy", fields: [requestedById], references: [id])
+  approvedBy    User?          @relation("approvalApprovedBy", fields: [approvedById], references: [id])
 
   @@map("approvals")
 }

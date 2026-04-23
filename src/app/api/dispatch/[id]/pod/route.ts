@@ -15,10 +15,13 @@ cloudinary.config({
 // POST /api/dispatch/[id]/pod — upload Proof of Delivery
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    console.log("[POD Upload API] Request received")
     const session = await getServerSession(authOptions)
     if (!session || session.user.role !== "ADMIN") {
+      console.log("[POD Upload API] Unauthorized:", session?.user?.role)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    console.log("[POD Upload API] Admin user:", session.user.id)
 
     const { id } = await params
     const formData = await request.formData()
@@ -42,8 +45,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!dispatch) return NextResponse.json({ error: "Dispatch not found" }, { status: 404 })
 
     // Upload to Cloudinary
+    console.log("[POD Upload API] Processing file:", file.name, "Type:", file.type, "Size:", file.size)
     const bytes = await file.arrayBuffer()
     const base64 = `data:${file.type};base64,${Buffer.from(bytes).toString("base64")}`
+    console.log("[POD Upload API] Uploading to Cloudinary...")
     const result = await cloudinary.uploader.upload(base64, {
       folder: `axis-print/${dispatch.projectId}/pod`,
       resource_type: "auto",
@@ -67,9 +72,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await pusherServer.trigger(CHANNELS.DISPATCH, EVENTS.DISPATCH_UPDATED, { id })
     await pusherServer.trigger(CHANNELS.PROJECTS, EVENTS.PROJECT_UPDATED, { projectId: dispatch.projectId })
 
+    console.log("[POD Upload API] Success:", result.secure_url)
     return NextResponse.json({ url: result.secure_url })
   } catch (error) {
-    console.error("POD upload error:", error)
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 })
+    console.error("[POD Upload API] Error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Upload failed"
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Upload, Loader2, FileText, Eye, Download, Trash2 } from "lucide-react"
+import { Upload, Loader2, FileText, Download, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface FileUploadButtonProps {
@@ -55,8 +55,19 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
       setProgress(90)
 
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Upload failed")
+        const text = await res.text()
+        let errorMessage = "Upload failed"
+        try {
+          const err = JSON.parse(text)
+          errorMessage = err.error || "Upload failed"
+        } catch {
+          // If not JSON, use status text or first part of HTML
+          errorMessage = res.statusText || "Upload failed"
+          if (text.includes("error")) {
+            console.error("Server error response:", text)
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       setProgress(100)
@@ -134,23 +145,40 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
               <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
               <span className="text-xs text-emerald-800 font-medium truncate flex-1">{f.filename}</span>
               <div className="flex items-center gap-1">
-                <a
-                  href={f.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={async () => {
+                    try {
+                      toast.loading("Downloading...", { id: `download-${f.id}` })
+                      const res = await fetch(`/api/files/${f.id}/download`)
+                      if (!res.ok) throw new Error("Download failed")
+
+                      const blob = await res.blob()
+                      const url = window.URL.createObjectURL(blob)
+
+                      // Create anchor and force download
+                      const a = document.createElement("a")
+                      a.href = url
+                      a.download = f.filename
+                      a.style.display = "none"
+                      document.body.appendChild(a)
+                      a.click()
+
+                      // Cleanup
+                      setTimeout(() => {
+                        window.URL.revokeObjectURL(url)
+                        document.body.removeChild(a)
+                      }, 100)
+
+                      toast.success("Downloaded!", { id: `download-${f.id}` })
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Download failed", { id: `download-${f.id}` })
+                    }
+                  }}
                   className="p-1.5 rounded hover:bg-emerald-200 transition-colors inline-flex"
-                  title="View"
-                >
-                  <Eye className="h-3.5 w-3.5 text-emerald-700" />
-                </a>
-                <a
-                  href={`/api/files/${f.id}/download`}
-                  download={f.filename}
-                  className="p-1.5 rounded hover:bg-emerald-200 transition-colors inline-flex"
-                  title="Download"
+                  title="Download file"
                 >
                   <Download className="h-3.5 w-3.5 text-emerald-700" />
-                </a>
+                </button>
                 {isAdmin && (
                   <button
                     onClick={async () => {

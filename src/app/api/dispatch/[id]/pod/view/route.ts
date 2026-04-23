@@ -3,48 +3,41 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-// GET /api/files/[id]/download - Proxy download from Cloudinary
+// GET /api/dispatch/[id]/pod/view - Proxy POD file from Cloudinary
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      console.error("[Download] No session or user ID")
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { id } = await params
-    console.log(`[Download] File ID: ${id}, User: ${session.user.id}, Role: ${session.user.role}`)
 
-    // Get file record
-    const fileRecord = await prisma.fileUpload.findUnique({
+    // Get dispatch with POD
+    const dispatch = await prisma.dispatch.findUnique({
       where: { id },
       include: { project: { select: { pocId: true } } },
     })
 
-    if (!fileRecord) {
-      console.error(`[Download] File not found: ${id}`)
-      return NextResponse.json({ error: "File not found" }, { status: 404 })
+    if (!dispatch || !dispatch.podUrl) {
+      return NextResponse.json({ error: "POD not found" }, { status: 404 })
     }
-
-    console.log(`[Download] File found: ${fileRecord.filename}, Project POC: ${fileRecord.project?.pocId}`)
 
     // Check permissions
     const isAdmin = session.user.role === "ADMIN"
-    const isOwner = fileRecord.project?.pocId === session.user.id
-
-    console.log(`[Download] isAdmin: ${isAdmin}, isOwner: ${isOwner}`)
+    const isOwner = dispatch.project.pocId === session.user.id
 
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     // Fetch file from Cloudinary
-    const response = await fetch(fileRecord.url)
+    const response = await fetch(dispatch.podUrl)
     if (!response.ok) {
-      return NextResponse.json({ error: "Failed to fetch file" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch POD" }, { status: 500 })
     }
 
     const blob = await response.blob()
@@ -53,17 +46,16 @@ export async function GET(
     // Determine content type
     const contentType = response.headers.get("content-type") || "application/octet-stream"
 
-    // Create headers for download
+    // Create headers for inline viewing
     const headers = new Headers()
     headers.set("Content-Type", contentType)
     headers.set("Content-Length", arrayBuffer.byteLength.toString())
-    headers.set("Content-Disposition", `attachment; filename="${fileRecord.filename}"`)
+    headers.set("Content-Disposition", `inline; filename="pod_${dispatch.id}.pdf"`)
     headers.set("Cache-Control", "public, max-age=3600")
 
     return new NextResponse(arrayBuffer, { headers })
   } catch (error) {
-    console.error("[Download] Error:", error)
-    const errorMessage = error instanceof Error ? error.message : "Unknown error"
-    return NextResponse.json({ error: "Failed to download file", details: errorMessage }, { status: 500 })
+    console.error("POD view error:", error)
+    return NextResponse.json({ error: "Failed to serve POD" }, { status: 500 })
   }
 }

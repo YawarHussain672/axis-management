@@ -5,17 +5,58 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Eye, Pencil, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { EditProjectDialog } from "./edit-project-dialog"
 
 // Global event for project deleted (syncs with projects-page-client)
 const PROJECT_DELETED_EVENT = "project-deleted"
 
-interface ProjectsActionsProps {
+interface Project {
+  id: string
+  name: string
   projectId: string
+  pocId: string
+  location: string
+  state: string
+  branch: string
+  deliveryDate: string | null
+  instructions: string | null
+  collaterals: { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[]
 }
 
-export function ProjectsActions({ projectId }: ProjectsActionsProps) {
+interface ProjectsActionsProps {
+  projectId: string
+  project?: Project
+}
+
+export function ProjectsActions({ projectId, project: initialProject }: ProjectsActionsProps) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [project, setProject] = useState<Project | null>(initialProject || null)
+  const [isLoadingProject, setIsLoadingProject] = useState(false)
+
+  const handleEditClick = async () => {
+    if (!project) {
+      // Fetch project data if not provided
+      setIsLoadingProject(true)
+      try {
+        const res = await fetch(`/api/projects/${projectId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setProject(data)
+          setEditDialogOpen(true)
+        } else {
+          toast.error("Failed to load project data")
+        }
+      } catch {
+        toast.error("Network error")
+      } finally {
+        setIsLoadingProject(false)
+      }
+    } else {
+      setEditDialogOpen(true)
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) return
@@ -39,24 +80,38 @@ export function ProjectsActions({ projectId }: ProjectsActionsProps) {
   }
 
   return (
-    <div className="flex items-center gap-0.5">
-      <Link href={`/projects/${projectId}`}>
-        <button className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
-          <Eye className="h-4 w-4" />
+    <>
+      <div className="flex items-center gap-0.5">
+        <Link href={`/projects/${projectId}`}>
+          <button className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+            <Eye className="h-4 w-4" />
+          </button>
+        </Link>
+        <button
+          onClick={handleEditClick}
+          disabled={isLoadingProject}
+          className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+        >
+          {isLoadingProject ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
         </button>
-      </Link>
-      <Link href={`/projects/${projectId}/edit`}>
-        <button className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
-          <Pencil className="h-4 w-4" />
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+        >
+          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         </button>
-      </Link>
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-      >
-        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-      </button>
-    </div>
+      </div>
+
+      {/* Edit Project Dialog */}
+      {project && (
+        <EditProjectDialog
+          project={project}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSuccess={() => router.refresh()}
+        />
+      )}
+    </>
   )
 }
