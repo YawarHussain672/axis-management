@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, ProjectStatus, FileUploadType, ApprovalStatus } from "@prisma/client"
+import { PrismaClient, UserRole, ProjectStatus, FileType, ApprovalStatus } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
 const prisma = new PrismaClient()
@@ -11,7 +11,6 @@ async function main() {
   await prisma.fileUpload.deleteMany()
   await prisma.collateral.deleteMany()
   await prisma.statusHistory.deleteMany()
-  await prisma.lead.deleteMany()
   await prisma.dispatch.deleteMany()
   await prisma.approval.deleteMany()
   await prisma.project.deleteMany()
@@ -38,7 +37,7 @@ async function main() {
 
   // Create POCs with the exact emails requested
   const pocPassword = await bcrypt.hash("Poc@123", 10)
-  
+
   const pocData = [
     { email: "harsh.gupta@axismaxlife.com", name: "Harsh Gupta", location: "Delhi", branch: "North" },
     { email: "pragyata.sharma@axismaxlife.com", name: "Pragyata Sharma", location: "Mumbai", branch: "West" },
@@ -64,23 +63,16 @@ async function main() {
     console.log("POC created:", created.email)
   }
 
-  // Create Rate Cards
+  // Create Rate Cards with proper structure
   const rateCards = [
-    { itemName: "Flier", quantitySlab: 1000, unitPrice: 4.95 },
-    { itemName: "Flier", quantitySlab: 5000, unitPrice: 1.92 },
-    { itemName: "Flier", quantitySlab: 10000, unitPrice: 1.58 },
-    { itemName: "Poster", quantitySlab: 100, unitPrice: 24.75 },
-    { itemName: "Poster", quantitySlab: 500, unitPrice: 12.50 },
-    { itemName: "Standee", quantitySlab: 10, unitPrice: 975.00 },
-    { itemName: "Standee", quantitySlab: 25, unitPrice: 750.00 },
-    { itemName: "Dangler", quantitySlab: 1000, unitPrice: 9.70 },
-    { itemName: "Dangler", quantitySlab: 5000, unitPrice: 4.95 },
-    { itemName: "Brochure", quantitySlab: 1000, unitPrice: 12.50 },
+    { itemName: "Flier", specification: "A4 front/back, 4 + 4 Color Printing, 90 GSM sinar mass", volumeSlabs: [{ slab: "1000", price: 4.95 }, { slab: "5000", price: 1.92 }] },
+    { itemName: "Poster", specification: "19 by 29 inches, 170 GSM, Art Paper", volumeSlabs: [{ slab: "100", price: 75.0 }, { slab: "1000", price: 19.35 }] },
+    { itemName: "Standee", specification: "3 ft by 6 ft, Rollup, Star Flex", volumeSlabs: [{ slab: "1-10", price: 1100.0 }, { slab: "11-50", price: 975.0 }] },
+    { itemName: "Dangler", specification: "Size: A4, 300 GSM, Front Back printing", volumeSlabs: [{ slab: "1000", price: 9.7 }, { slab: "5000", price: 4.95 }] },
+    { itemName: "Brochure", specification: "A4 Closed, 16 Pages+ Cover", volumeSlabs: [{ slab: "1000", price: 41.71 }] },
   ]
 
-  for (const rc of rateCards) {
-    await prisma.rateCard.create({ data: rc })
-  }
+  await Promise.all(rateCards.map((rc) => prisma.rateCard.create({ data: rc })))
   console.log("Rate cards created:", rateCards.length)
 
   // Create one sample project for each POC
@@ -89,45 +81,45 @@ async function main() {
   const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
 
   const projectTemplates = [
-    { 
-      name: "Delhi Branch Campaign", 
-      location: "Delhi", 
-      branch: "North", 
+    {
+      name: "Delhi Branch Campaign",
+      location: "Delhi",
+      branch: "North",
       state: "Delhi",
-      status: ProjectStatus.REQUESTED, 
+      status: ProjectStatus.REQUESTED,
       pocIndex: 0,
       collaterals: [{ itemName: "Flier", quantity: 1000, unitPrice: 4.95, totalPrice: 4950 }],
       totalCost: 5841,
       createdAt: yesterday,
     },
-    { 
-      name: "Mumbai Marketing Materials", 
-      location: "Mumbai", 
-      branch: "West", 
+    {
+      name: "Mumbai Marketing Materials",
+      location: "Mumbai",
+      branch: "West",
       state: "Maharashtra",
-      status: ProjectStatus.APPROVED, 
+      status: ProjectStatus.APPROVED,
       pocIndex: 1,
       collaterals: [{ itemName: "Poster", quantity: 200, unitPrice: 24.75, totalPrice: 4950 }],
       totalCost: 5841,
       createdAt: weekAgo,
     },
-    { 
-      name: "Chennai Branch Opening", 
-      location: "Chennai", 
-      branch: "South", 
+    {
+      name: "Chennai Branch Opening",
+      location: "Chennai",
+      branch: "South",
       state: "Tamil Nadu",
-      status: ProjectStatus.PRINTING, 
+      status: ProjectStatus.PRINTING,
       pocIndex: 2,
       collaterals: [{ itemName: "Standee", quantity: 15, unitPrice: 975, totalPrice: 14625 }],
       totalCost: 17257.50,
       createdAt: weekAgo,
     },
-    { 
-      name: "Bangalore Product Launch", 
-      location: "Bangalore", 
-      branch: "South", 
+    {
+      name: "Bangalore Product Launch",
+      location: "Bangalore",
+      branch: "South",
       state: "Karnataka",
-      status: ProjectStatus.DELIVERED, 
+      status: ProjectStatus.DELIVERED,
       pocIndex: 3,
       collaterals: [{ itemName: "Dangler", quantity: 2000, unitPrice: 9.70, totalPrice: 19400 }],
       totalCost: 22892,
@@ -138,7 +130,7 @@ async function main() {
   for (let i = 0; i < projectTemplates.length; i++) {
     const proj = projectTemplates[i]
     const piNumber = (2000 + i).toString()
-    
+
     const project = await prisma.project.create({
       data: {
         projectId: `PROJ-2024-${String(i + 1).padStart(3, '0')}`,
@@ -159,11 +151,11 @@ async function main() {
         },
         statusHistory: {
           create: [
-            { status: ProjectStatus.REQUESTED, note: "Project requested", createdAt: proj.createdAt },
-            ...(proj.status !== ProjectStatus.REQUESTED ? [{ status: ProjectStatus.APPROVED, note: "Approved by admin", createdAt: yesterday }] : []),
-            ...(proj.status === ProjectStatus.PRINTING || proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.PRINTING, note: "Printing started", createdAt: yesterday }] : []),
-            ...(proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.DISPATCHED, note: "Dispatched", createdAt: yesterday }] : []),
-            ...(proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.DELIVERED, note: "Delivered", createdAt: today }] : []),
+            { status: ProjectStatus.REQUESTED, note: "Project requested" },
+            ...(proj.status !== ProjectStatus.REQUESTED ? [{ status: ProjectStatus.APPROVED, note: "Approved by admin" }] : []),
+            ...(proj.status === ProjectStatus.PRINTING || proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.PRINTING, note: "Printing started" }] : []),
+            ...(proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.DISPATCHED, note: "Dispatched" }] : []),
+            ...(proj.status === ProjectStatus.DELIVERED ? [{ status: ProjectStatus.DELIVERED, note: "Delivered" }] : []),
           ],
         },
       },
