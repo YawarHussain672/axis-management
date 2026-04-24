@@ -2,62 +2,76 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, AlertCircle, Loader2, Save, X } from "lucide-react"
-import { formatCurrency, applyGST, getGSTAmount } from "@/utils/formatters"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { getUnitPriceFromSlabs, type VolumeSlab } from "@/lib/rate-card-pricing"
-import { BRANCH_LOCATIONS, CITIES } from "@/lib/branch-locations"
 
-interface CollateralItem { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }
-interface POC { id: string; name: string }
-interface RateCardItem { id: string; name: string; defaultPrice: number; volumeSlabs: VolumeSlab[] }
+// Match HTML reference exactly - simplified fields
 interface Project {
   id: string
   name: string
   pocId: string
   location: string
   state: string
-  branch: string
   deliveryDate: string | null
-  instructions: string | null
-  collaterals: CollateralItem[]
+  status: string
+  material?: string
+  quantity?: number
+  collaterals?: { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[]
+  dispatch?: {
+    courier: string
+    trackingId: string
+  } | null
 }
+
+interface POC { id: string; name: string }
 
 interface EditProjectDialogProps {
   project: Project | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: () => void
+  isAdmin?: boolean
 }
 
-export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: EditProjectDialogProps) {
+// Match HTML reference status values exactly
+const PROJECT_STATUSES = [
+  { value: "requested", label: "Requested" },
+  { value: "approved", label: "Approved" },
+  { value: "printing", label: "Printing" },
+  { value: "dispatched", label: "Dispatched" },
+  { value: "delivered", label: "Delivered" },
+]
+
+// Match HTML reference locations
+const LOCATIONS = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Pune", "Hyderabad", "Kolkata", "Noida", "Gurgaon"]
+
+// Match HTML reference couriers
+const COURIERS = [
+  { value: "-", label: "Not assigned" },
+  { value: "Delhivery", label: "Delhivery" },
+  { value: "BlueDart", label: "BlueDart" },
+  { value: "DTDC", label: "DTDC" },
+  { value: "FedEx", label: "FedEx" },
+]
+
+export function EditProjectDialog({ project, open, onOpenChange, onSuccess, isAdmin = false }: EditProjectDialogProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [pocs, setPocs] = useState<POC[]>([])
-  const [rateCards, setRateCards] = useState<RateCardItem[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Match HTML reference form fields exactly
   const [formData, setFormData] = useState({
     name: "",
     pocId: "",
-    city: "",
-    branch: "",
+    location: "",
+    status: "",
+    material: "",
+    quantity: "",
+    courier: "",
     deliveryDate: "",
-    instructions: "",
   })
-  const [collaterals, setCollaterals] = useState<CollateralItem[]>([])
 
   const today = new Date().toISOString().split("T")[0]
 
@@ -69,29 +83,27 @@ export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: Ed
       if (!project) return
       setIsFetching(true)
       try {
-        const [teamRes, rateRes] = await Promise.all([
-          fetch("/api/team-list"),
-          fetch("/api/rate-card-list"),
-        ])
-
+        const teamRes = await fetch("/api/team-list")
         if (teamRes.ok) {
           const team = await teamRes.json()
           setPocs(team.map((u: { id: string; name: string }) => ({ id: u.id, name: u.name })))
         }
-        if (rateRes.ok) {
-          setRateCards(await rateRes.json())
-        }
 
-        // Set form data from project
+        // Set form data from project - match HTML reference exactly
         setFormData({
           name: project.name || "",
           pocId: project.pocId || "",
-          city: project.location || "",
-          branch: project.branch || "",
+          location: project.location || "",
+          // Convert status to lowercase to match HTML reference
+          status: project.status?.toLowerCase() || "requested",
+          // Get material from first collateral or empty
+          material: project.material || project.collaterals?.[0]?.itemName || "",
+          // Get quantity from first collateral or empty
+          quantity: project.quantity?.toString() || project.collaterals?.[0]?.quantity?.toString() || "",
+          // Courier with "-" as default (Not assigned)
+          courier: project.dispatch?.courier || "-",
           deliveryDate: project.deliveryDate ? project.deliveryDate.split("T")[0] : "",
-          instructions: project.instructions || "",
         })
-        setCollaterals(project.collaterals?.map((c: CollateralItem) => ({ ...c })) || [])
       } catch {
         toast.error("Failed to load form data")
       } finally {
@@ -102,51 +114,16 @@ export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: Ed
     loadData()
   }, [open, project])
 
-  const selectedCity = formData.city
-  const cityData = selectedCity ? BRANCH_LOCATIONS[selectedCity] : null
-  const availableBranches = cityData?.branches || []
-
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!formData.name.trim() || formData.name.trim().length < 3) errs.name = "Project name must be at least 3 characters"
     if (!formData.pocId) errs.pocId = "Please select a POC"
-    if (!formData.city) errs.city = "Please select a city"
-    if (!formData.branch) errs.branch = "Please select a branch"
+    if (!formData.location) errs.location = "Please select a location"
+    if (!formData.status) errs.status = "Please select a status"
     if (!formData.deliveryDate) errs.deliveryDate = "Delivery date is required"
-    const validCollaterals = collaterals.filter((c) => c.itemName && c.quantity > 0)
-    if (validCollaterals.length === 0) errs.collaterals = "Add at least one collateral"
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
-
-  const addCollateral = () => {
-    setCollaterals([...collaterals, { id: Math.random().toString(36).substr(2, 9), itemName: "", quantity: 0, unitPrice: 0, totalPrice: 0 }])
-  }
-
-  const removeCollateral = (cid: string) => {
-    if (collaterals.length > 1) setCollaterals(collaterals.filter((c) => c.id !== cid))
-  }
-
-  const updateCollateral = (cid: string, field: keyof CollateralItem, value: string | number) => {
-    setCollaterals(collaterals.map((c) => {
-      if (c.id !== cid) return c
-      const updated = { ...c, [field]: value }
-      if (field === "itemName") {
-        const item = rateCards.find((i) => i.name === value)
-        if (item) updated.unitPrice = getUnitPriceFromSlabs(item.volumeSlabs, updated.quantity || 1) ?? item.defaultPrice
-      }
-      if (field === "quantity") {
-        const item = rateCards.find((i) => i.name === updated.itemName)
-        if (item) updated.unitPrice = getUnitPriceFromSlabs(item.volumeSlabs, Number(value)) ?? item.defaultPrice
-      }
-      updated.totalPrice = updated.quantity * updated.unitPrice
-      return updated
-    }))
-  }
-
-  const subtotal = collaterals.reduce((sum, c) => sum + c.totalPrice, 0)
-  const gstAmount = getGSTAmount(subtotal)
-  const totalCost = applyGST(subtotal)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,7 +132,11 @@ export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: Ed
 
     setIsLoading(true)
     try {
-      const state = cityData?.state || ""
+      // Create collateral from simple material/quantity fields (matching HTML reference)
+      const collateral = formData.material ? [{
+        itemName: formData.material,
+        quantity: parseInt(formData.quantity) || 1,
+      }] : undefined
 
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PUT",
@@ -163,13 +144,21 @@ export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: Ed
         body: JSON.stringify({
           name: formData.name,
           pocId: formData.pocId,
-          location: formData.city,
-          state,
-          branch: formData.branch,
+          location: formData.location,
           deliveryDate: formData.deliveryDate,
-          instructions: formData.instructions,
-          collaterals: collaterals.filter((c) => c.itemName && c.quantity > 0),
-          totalCost: subtotal,
+          // Status is visible to all (matching HTML reference)
+          status: formData.status.toUpperCase(),
+          // Simple material/quantity (matching HTML reference)
+          material: formData.material,
+          quantity: parseInt(formData.quantity) || 0,
+          collaterals: collateral,
+          // Courier with "Not assigned" option (matching HTML reference)
+          ...(formData.courier && formData.courier !== "-" ? {
+            dispatch: {
+              courier: formData.courier,
+              trackingId: "",
+            }
+          } : {}),
         }),
       })
 
@@ -194,185 +183,181 @@ export function EditProjectDialog({ project, open, onOpenChange, onSuccess }: Ed
     }
   }
 
-  if (!project) return null
+  if (!project || !open) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-            Edit Project
-          </DialogTitle>
-        </DialogHeader>
-
-        {isFetching ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-[#003c71] mx-auto mb-3" />
-              <p className="text-slate-500 text-sm">Loading project data...</p>
-            </div>
+    <div className="modal-overlay" onClick={(e) => {
+      if (e.target === e.currentTarget) onOpenChange(false)
+    }}>
+      <div className="modal" style={{ maxWidth: '900px' }} onClick={(e) => e.stopPropagation()}>
+        {/* Modal Header - Matching HTML exactly */}
+        <div className="modal-header">
+          <div>
+            <h2 className="modal-title">Edit Project</h2>
+            <p className="modal-subtitle">{project.id} • {project.name}</p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-            {/* Project Details */}
-            <div className="space-y-4">
-              <h3 className="font-bold text-lg text-slate-800 border-b pb-2">Project Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">Project Name <span className="text-red-500">*</span></Label>
-                  <Input
+          <button className="modal-close" onClick={() => onOpenChange(false)}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="modal-body">
+          {isFetching ? (
+            <div style={{ textAlign: 'center', padding: '48px' }}>
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" style={{ color: '#003c71' }} />
+              <p style={{ color: '#64748b', fontSize: '14px' }}>Loading project data...</p>
+            </div>
+          ) : (
+            <form id="editProjectForm" onSubmit={handleSubmit} noValidate>
+              {/* Form Grid - Matching HTML form-grid class */}
+              <div className="form-grid">
+                {/* Project Name */}
+                <div className="form-group">
+                  <label className="form-label">Project Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
                     value={formData.name}
                     onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setErrors({ ...errors, name: "" }) }}
-                    className={errors.name ? "border-red-400" : ""}
+                    style={errors.name ? { borderColor: '#ef4444' } : {}}
                   />
-                  {errors.name && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.name}</p>}
+                  {errors.name && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>{errors.name}</p>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">POC <span className="text-red-500">*</span></Label>
-                  <Select value={formData.pocId} onValueChange={(v) => { setFormData({ ...formData, pocId: v }); setErrors({ ...errors, pocId: "" }) }}>
-                    <SelectTrigger className={errors.pocId ? "border-red-400" : ""}>
-                      <SelectValue placeholder="Select POC" />
-                    </SelectTrigger>
-                    <SelectContent>{pocs.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {errors.pocId && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.pocId}</p>}
+                {/* POC Name */}
+                <div className="form-group">
+                  <label className="form-label">POC Name *</label>
+                  <select
+                    className="form-select"
+                    value={formData.pocId}
+                    onChange={(e) => { setFormData({ ...formData, pocId: e.target.value }); setErrors({ ...errors, pocId: "" }) }}
+                    style={errors.pocId ? { borderColor: '#ef4444' } : {}}
+                  >
+                    <option value="">Select POC</option>
+                    {pocs.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {errors.pocId && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>{errors.pocId}</p>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">City <span className="text-red-500">*</span></Label>
-                  <Select value={formData.city} onValueChange={(v) => { setFormData({ ...formData, city: v, branch: "" }); setErrors({ ...errors, city: "" }) }}>
-                    <SelectTrigger className={errors.city ? "border-red-400" : ""}>
-                      <SelectValue placeholder="Select city" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CITIES.map((city) => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.city && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.city}</p>}
+                {/* Location */}
+                <div className="form-group">
+                  <label className="form-label">Location *</label>
+                  <select
+                    className="form-select"
+                    value={formData.location}
+                    onChange={(e) => { setFormData({ ...formData, location: e.target.value }); setErrors({ ...errors, location: "" }) }}
+                    style={errors.location ? { borderColor: '#ef4444' } : {}}
+                  >
+                    <option value="">Select Location</option>
+                    {LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                  {errors.location && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>{errors.location}</p>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">Branch <span className="text-red-500">*</span></Label>
-                  <Select value={formData.branch} onValueChange={(v) => { setFormData({ ...formData, branch: v }); setErrors({ ...errors, branch: "" }) }} disabled={!formData.city}>
-                    <SelectTrigger className={errors.branch ? "border-red-400" : ""}>
-                      <SelectValue placeholder={formData.city ? "Select branch" : "Select city first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBranches.map((branch) => (
-                        <SelectItem key={branch} value={branch}>{branch}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.branch && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.branch}</p>}
+                {/* Status - Visible to ALL like HTML reference */}
+                <div className="form-group">
+                  <label className="form-label">Status *</label>
+                  <select
+                    className="form-select"
+                    value={formData.status}
+                    onChange={(e) => { setFormData({ ...formData, status: e.target.value }); setErrors({ ...errors, status: "" }) }}
+                    style={errors.status ? { borderColor: '#ef4444' } : {}}
+                  >
+                    {PROJECT_STATUSES.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                  {errors.status && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>{errors.status}</p>}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold">Delivery Date <span className="text-red-500">*</span></Label>
-                  <Input
+                {/* Material - Simple text like HTML */}
+                <div className="form-group">
+                  <label className="form-label">Material</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={formData.material}
+                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                    placeholder="e.g., Standee, Poster, One Pager"
+                  />
+                </div>
+
+                {/* Quantity - Simple number like HTML */}
+                <div className="form-group">
+                  <label className="form-label">Quantity</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  />
+                </div>
+
+                {/* Courier with "Not assigned" like HTML */}
+                <div className="form-group">
+                  <label className="form-label">Courier</label>
+                  <select
+                    className="form-select"
+                    value={formData.courier}
+                    onChange={(e) => setFormData({ ...formData, courier: e.target.value })}
+                  >
+                    {COURIERS.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Delivery Date */}
+                <div className="form-group">
+                  <label className="form-label">Delivery Date</label>
+                  <input
                     type="date"
+                    className="form-input"
                     min={today}
                     value={formData.deliveryDate}
                     onChange={(e) => { setFormData({ ...formData, deliveryDate: e.target.value }); setErrors({ ...errors, deliveryDate: "" }) }}
-                    className={errors.deliveryDate ? "border-red-400" : ""}
+                    style={errors.deliveryDate ? { borderColor: '#ef4444' } : {}}
                   />
-                  {errors.deliveryDate && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{errors.deliveryDate}</p>}
-                </div>
-
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-sm font-semibold">Special Instructions <span className="text-slate-400 font-normal">(optional)</span></Label>
-                  <Textarea
-                    value={formData.instructions}
-                    onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
-                    rows={2}
-                    maxLength={1000}
-                  />
-                  <p className="text-xs text-slate-400 text-right">{formData.instructions.length}/1000</p>
+                  {errors.deliveryDate && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>{errors.deliveryDate}</p>}
                 </div>
               </div>
-            </div>
+            </form>
+          )}
+        </div>
 
-            {/* Collaterals */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="font-bold text-lg text-slate-800">Collaterals</h3>
-                <Button type="button" onClick={addCollateral} variant="outline" size="sm" className="gap-1">
-                  <Plus className="h-3.5 w-3.5" /> Add Item
-                </Button>
-              </div>
-
-              {errors.collaterals && (
-                <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4 shrink-0" />{errors.collaterals}
-                </div>
-              )}
-
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {collaterals.map((c) => (
-                  <div key={c.id} className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 border border-slate-200 rounded-lg bg-slate-50/50">
-                    <div className="space-y-1 md:col-span-2">
-                      <Label className="text-sm font-semibold text-slate-700">Item</Label>
-                      <Select value={c.itemName} onValueChange={(v) => updateCollateral(c.id, "itemName", v)}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Select item" /></SelectTrigger>
-                        <SelectContent>{rateCards.map((i) => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-sm font-semibold text-slate-700">Qty</Label>
-                      <Input type="number" min="1" className="h-9" value={c.quantity || ""} onChange={(e) => updateCollateral(c.id, "quantity", parseInt(e.target.value) || 0)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-sm font-semibold text-slate-700">Unit Price</Label>
-                      <Input type="number" step="0.01" min="0.01" className="h-9" value={c.unitPrice || ""} onChange={(e) => updateCollateral(c.id, "unitPrice", parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div className="flex items-end gap-1">
-                      <div className="flex-1 space-y-1">
-                        <Label className="text-sm font-semibold text-slate-700">Subtotal</Label>
-                        <Input value={formatCurrency(c.totalPrice)} disabled className="h-9 bg-white font-mono text-sm" />
-                      </div>
-                      {collaterals.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500 hover:bg-red-50 shrink-0" onClick={() => removeCollateral(c.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Cost Summary */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2 bg-slate-50">
-                  <span className="text-base font-semibold text-slate-700">Subtotal</span>
-                  <span className="font-mono font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-2 border-t border-slate-200 bg-slate-50">
-                  <span className="text-base font-semibold text-slate-700">GST @ 18%</span>
-                  <span className="font-mono font-semibold text-amber-600">+ {formatCurrency(gstAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3 bg-[#003c71] text-white">
-                  <div>
-                    <p className="font-bold text-base">Total Amount</p>
-                    <p className="text-blue-200 text-xs">Inclusive of 18% GST</p>
-                  </div>
-                  <span className="text-xl font-extrabold font-mono">{formatCurrency(totalCost)}</span>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-                <X className="h-4 w-4 mr-1" /> Cancel
-              </Button>
-              <Button type="submit" className="gap-2 bg-[#003c71] hover:bg-[#002a52]" disabled={isLoading}>
-                {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : <><Save className="h-4 w-4" />Save Changes</>}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
+        {/* Modal Footer - Matching HTML exactly */}
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => document.getElementById('editProjectForm')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))}
+            disabled={isLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            {isLoading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+            ) : (
+              <>
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

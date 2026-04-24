@@ -20,15 +20,21 @@ interface Project {
   branch: string
   deliveryDate: string | null
   instructions: string | null
+  status: string
   collaterals: { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }[]
+  dispatch?: {
+    courier: string
+    trackingId: string
+  } | null
 }
 
 interface ProjectsActionsProps {
   projectId: string
   project?: Project
+  isAdmin?: boolean
 }
 
-export function ProjectsActions({ projectId, project: initialProject }: ProjectsActionsProps) {
+export function ProjectsActions({ projectId, project: initialProject, isAdmin = false }: ProjectsActionsProps) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -109,6 +115,7 @@ export function ProjectsActions({ projectId, project: initialProject }: Projects
           project={project}
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
+          isAdmin={isAdmin}
           onSuccess={() => router.refresh()}
         />
       )}

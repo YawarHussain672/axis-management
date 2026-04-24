@@ -2,11 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { UserRole, Prisma } from "@prisma/client"
-import { Users } from "lucide-react"
+import { Prisma } from "@prisma/client"
 import { TeamActions } from "@/components/team/team-actions"
 
 type TeamMember = Prisma.UserGetPayload<Record<string, never>>
@@ -26,78 +22,136 @@ export default async function TeamPage() {
 
   const members = await getTeamMembers()
 
+  // Empty state icon
+  const UsersIcon = () => (
+    <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  )
+
+  // Get initials for avatar
+  const getInitials = (name: string) => {
+    return name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+  }
+
+  // Format date
+  const formatJoinedDate = (date: Date) => {
+    return new Date(date).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      {/* Page Header */}
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Team & Roles</h1>
-          <p className="text-gray-500 mt-1">Manage POCs and team members</p>
+          <h1 className="page-title">Team & Roles</h1>
+          <p className="page-subtitle">Manage POCs and team members</p>
         </div>
         <TeamActions mode="add" />
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50/80 hover:bg-gray-50">
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Name</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Email</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Phone</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Location</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Branch</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Role</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Status</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Joined</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      {/* Team Table Card */}
+      <div className="card">
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Joined Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
               {members.map((member: TeamMember) => (
-                <TableRow key={member.id} className="hover:bg-gray-50/50">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-linear-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                        {member.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                <tr key={member.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div
+                        className="user-avatar"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          fontSize: '14px',
+                          background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          color: 'white'
+                        }}
+                      >
+                        {getInitials(member.name)}
                       </div>
-                      <span className="font-semibold text-gray-900">{member.name}</span>
+                      <strong>{member.name}</strong>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-gray-600">{member.email}</TableCell>
-                  <TableCell className="font-mono text-gray-600">{member.phone || "—"}</TableCell>
-                  <TableCell className="text-gray-600">{member.location || "—"}</TableCell>
-                  <TableCell className="text-gray-600">{member.branch || "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={member.role === UserRole.ADMIN ? "default" : "approved"} className="text-xs">
+                  </td>
+                  <td>{member.email}</td>
+                  <td className="font-mono">{member.phone || "—"}</td>
+                  <td>
+                    <span
+                      style={{
+                        padding: '4px 12px',
+                        background: member.role === 'ADMIN' ? 'rgba(139, 92, 246, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                        color: member.role === 'ADMIN' ? 'var(--status-requested)' : 'var(--status-approved)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}
+                    >
                       {member.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${member.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${member.active ? "bg-green-500" : "bg-gray-400"}`} />
-                      {member.active ? "Active" : "Inactive"}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-gray-500 text-sm">
-                    {new Date(member.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })}
-                  </TableCell>
-                  <TableCell>
-                    <TeamActions mode="edit" member={{ id: member.id, name: member.name, phone: member.phone || "", role: member.role, active: member.active, location: member.location || "", branch: member.branch || "" }} />
-                  </TableCell>
-                </TableRow>
+                  </td>
+                  <td>
+                    <span
+                      style={{
+                        padding: '4px 12px',
+                        background: member.active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: member.active ? 'var(--color-success)' : 'var(--color-error)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 700
+                      }}
+                    >
+                      {member.active ? '● Active' : '● Inactive'}
+                    </span>
+                  </td>
+                  <td>{formatJoinedDate(member.createdAt)}</td>
+                  <td>
+                    <TeamActions
+                      mode="edit"
+                      member={{
+                        id: member.id,
+                        name: member.name,
+                        email: member.email,
+                        phone: member.phone || "",
+                        role: member.role,
+                        active: member.active,
+                        location: member.location || "",
+                        branch: member.branch || ""
+                      }}
+                    />
+                  </td>
+                </tr>
               ))}
               {members.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-16 text-gray-400">
-                    <Users className="h-12 w-12 mx-auto mb-3 text-gray-200" />
-                    <p className="font-medium">No team members yet</p>
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '60px', color: 'var(--gray-400)' }}>
+                    <div style={{ color: 'var(--gray-300)', marginBottom: '12px' }}>
+                      <UsersIcon />
+                    </div>
+                    <p style={{ fontWeight: 500 }}>No team members yet</p>
+                  </td>
+                </tr>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

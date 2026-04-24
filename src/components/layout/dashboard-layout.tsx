@@ -11,14 +11,14 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, user }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-slate-50/50">
+    <div className="app-shell">
       <Sidebar user={user} />
-      <div className="ml-64">
+      <main className="main-content">
         <TopBar user={user} />
-        <main className="p-6">
+        <div className="content-wrapper">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
       <NewProjectModal />
     </div>
   )

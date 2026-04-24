@@ -1,21 +1,50 @@
 "use client"
 
-import { Download, Plus, ChevronDown, Search, Loader2 } from "lucide-react"
-import { openNewProjectModal } from "@/components/projects/new-project-modal"
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useDebouncedCallback } from "use-debounce"
-import { NotificationBell } from "@/components/layout/notification-bell"
+import { openNewProjectModal } from "@/components/projects/new-project-modal"
+import { NotificationBell } from "./notification-bell"
 
 interface TopBarProps {
   user?: { role: string }
 }
 
+// SVG Icons matching HTML file
+const BellIcon = () => (
+  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+  </svg>
+)
+
+const SearchIcon = () => (
+  <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+)
+
+const ExportIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+)
+
+const PlusIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+  </svg>
+)
+
+const LoaderIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="animate-spin">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
+
 export function TopBar({ user }: TopBarProps) {
   const router = useRouter()
-  const [exporting, setExporting] = useState<string | null>(null)
-  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<{ id: string; projectId: string; name: string; status: string; location: string }[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
@@ -49,26 +78,24 @@ export function TopBar({ user }: TopBarProps) {
     }
   }, 350)
 
-  const statusColors: Record<string, string> = {
-    REQUESTED: "bg-violet-100 text-violet-700",
-    APPROVED: "bg-blue-100 text-blue-700",
-    PRINTING: "bg-amber-100 text-amber-700",
-    DISPATCHED: "bg-cyan-100 text-cyan-700",
-    DELIVERED: "bg-green-100 text-green-700",
-    CANCELLED: "bg-red-100 text-red-700",
+  const statusBadgeClass = (status: string) => {
+    const classes: Record<string, string> = {
+      REQUESTED: "status-badge status-requested",
+      APPROVED: "status-badge status-approved",
+      PRINTING: "status-badge status-printing",
+      DISPATCHED: "status-badge status-dispatched",
+      DELIVERED: "status-badge status-delivered",
+    }
+    return classes[status] || "status-badge"
   }
 
-  const handleExport = async (type: "projects" | "dispatch") => {
-    setExporting(type)
-    setExportOpen(false)
-
+  const handleExport = async () => {
+    setExporting(true)
     try {
-      // Fetch data from API
-      const res = await fetch(`/api/export?type=${type}`)
-      if (!res.ok) throw new Error("Failed to fetch data")
+      const res = await fetch("/api/export?type=projects")
+      if (!res.ok) throw new Error("Failed to fetch")
       const { data } = await res.json()
 
-      // Dynamically import jsPDF (client-side only)
       const { default: jsPDF } = await import("jspdf")
       const { default: autoTable } = await import("jspdf-autotable")
 
@@ -76,250 +103,133 @@ export function TopBar({ user }: TopBarProps) {
       const date = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
       const pageW = doc.internal.pageSize.getWidth()
 
-      // ── Header bar ──
       doc.setFillColor(0, 60, 113)
-      doc.rect(0, 0, pageW, 22, "F")
-
+      doc.rect(0, 0, pageW, 24, "F")
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(14)
-      doc.setFont("helvetica", "bold")
-      doc.text("AXIS MAX LIFE", 14, 10)
 
-      doc.setFontSize(9)
+      // Left: Company name and system name
+      doc.setFontSize(13)
+      doc.setFont("helvetica", "bold")
+      doc.text("AXIS MAX LIFE", 14, 11)
+      doc.setFontSize(8)
       doc.setFont("helvetica", "normal")
       doc.text("Print Project Management System", 14, 16)
 
-      const title = type === "projects" ? "Projects Report" : "Dispatch & Tracking Report"
-      doc.setFontSize(12)
+      // Center: Report title
+      doc.setFontSize(14)
       doc.setFont("helvetica", "bold")
-      doc.text(title, pageW / 2, 13, { align: "center" })
+      doc.text("Projects Report", pageW / 2, 13, { align: "center" })
 
+      // Right: Date
       doc.setFontSize(8)
       doc.setFont("helvetica", "normal")
-      doc.text(`Generated: ${date}`, pageW - 14, 10, { align: "right" })
-      doc.text(`Total Records: ${data.length}`, pageW - 14, 16, { align: "right" })
+      doc.text(`Generated: ${date}`, pageW - 14, 11, { align: "right" })
 
-      // ── Table ──
-      if (type === "projects") {
-        const head = [["Project ID", "Name", "POC", "Location", "Status", "Delivery Date", "Cost (₹)", "Collaterals"]]
-        const body = data.map((p: {
-          projectId: string; name: string; poc?: { name: string }; location: string;
-          status: string; deliveryDate: string; totalCost: number;
-          collaterals: { itemName: string; quantity: number }[]
-        }) => [
-            p.projectId,
-            p.name.length > 28 ? p.name.slice(0, 28) + "…" : p.name,
-            p.poc?.name || "—",
-            p.location,
-            p.status,
-            new Date(p.deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
-            `₹${Number(p.totalCost).toLocaleString("en-IN")}`,
-            p.collaterals.map((c: { itemName: string; quantity: number }) => `${c.itemName}(${c.quantity})`).join(", "),
-          ])
+      autoTable(doc, {
+        head: [["Project ID", "Name", "POC", "Location", "Status", "Delivery Date", "Cost"]],
+        body: data.map((p: { projectId: string; name: string; poc?: { name: string }; location: string; status: string; deliveryDate: string; totalCost: number }) => [
+          p.projectId,
+          p.name.slice(0, 30),
+          p.poc?.name || "—",
+          p.location,
+          p.status,
+          new Date(p.deliveryDate).toLocaleDateString("en-IN"),
+          `Rs. ${p.totalCost.toLocaleString("en-US")}`,
+        ]),
+        startY: 28,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+        margin: { left: 14, right: 14 },
+      })
 
-        const statusColors: Record<string, [number, number, number]> = {
-          REQUESTED: [124, 58, 237],
-          APPROVED: [37, 99, 235],
-          PRINTING: [217, 119, 6],
-          DISPATCHED: [8, 145, 178],
-          DELIVERED: [5, 150, 105],
-          CANCELLED: [220, 38, 38],
-        }
-
-        autoTable(doc, {
-          head,
-          body,
-          startY: 28,
-          styles: { fontSize: 8, cellPadding: 3, font: "helvetica", textColor: [30, 41, 59] },
-          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          columnStyles: {
-            0: { cellWidth: 28, fontStyle: "bold", textColor: [0, 60, 113] },
-            1: { cellWidth: 50 },
-            2: { cellWidth: 28 },
-            3: { cellWidth: 24 },
-            4: { cellWidth: 24 },
-            5: { cellWidth: 28 },
-            6: { cellWidth: 26, halign: "right", fontStyle: "bold" },
-            7: { cellWidth: 60 },
-          },
-          didParseCell: (hookData) => {
-            if (hookData.column.index === 4 && hookData.section === "body") {
-              const status = String(hookData.cell.raw)
-              const color = statusColors[status]
-              if (color) hookData.cell.styles.textColor = color
-            }
-          },
-          margin: { left: 14, right: 14 },
-        })
-      } else {
-        const head = [["Project ID", "Project Name", "Location", "Courier", "Tracking ID", "Dispatch Date", "Expected Delivery", "Status"]]
-        const body = data.map((d: {
-          project: { projectId: string; name: string; location: string; status: string };
-          courier: string; trackingId: string; dispatchDate?: string;
-          expectedDelivery?: string; status: string
-        }) => [
-            d.project.projectId,
-            d.project.name.length > 30 ? d.project.name.slice(0, 30) + "…" : d.project.name,
-            d.project.location,
-            d.courier,
-            d.trackingId,
-            d.dispatchDate ? new Date(d.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
-            d.expectedDelivery ? new Date(d.expectedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
-            d.project.status,
-          ])
-
-        autoTable(doc, {
-          head,
-          body,
-          startY: 28,
-          styles: { fontSize: 8, cellPadding: 3, font: "helvetica", textColor: [30, 41, 59] },
-          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          columnStyles: {
-            0: { cellWidth: 30, fontStyle: "bold", textColor: [0, 60, 113] },
-            1: { cellWidth: 55 },
-            2: { cellWidth: 28 },
-            3: { cellWidth: 28 },
-            4: { cellWidth: 35, fontStyle: "bold", textColor: [8, 145, 178] },
-            5: { cellWidth: 30 },
-            6: { cellWidth: 30 },
-            7: { cellWidth: 28 },
-          },
-          margin: { left: 14, right: 14 },
-        })
-      }
-
-      // ── Footer on each page ──
-      const pageCount = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages()
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i)
-        const pageH = doc.internal.pageSize.getHeight()
-        doc.setFillColor(248, 250, 252)
-        doc.rect(0, pageH - 10, pageW, 10, "F")
-        doc.setFontSize(7)
-        doc.setTextColor(148, 163, 184)
-        doc.setFont("helvetica", "normal")
-        doc.text("Axis Max Life Insurance — Confidential", 14, pageH - 4)
-        doc.text(`Page ${i} of ${pageCount}`, pageW / 2, pageH - 4, { align: "center" })
-        doc.text("axis-print-management.internal", pageW - 14, pageH - 4, { align: "right" })
-      }
-
-      // ── Save ──
-      const filename = `${type === "projects" ? "Projects" : "Dispatch"}_Report_${new Date().toISOString().split("T")[0]}.pdf`
-      doc.save(filename)
-      toast.success(`${type === "projects" ? "Projects" : "Dispatch"} report downloaded!`)
-    } catch (err) {
-      console.error(err)
-      toast.error("Export failed. Please try again.")
+      doc.save(`Projects_Report_${new Date().toISOString().split("T")[0]}.pdf`)
+      toast.success("Report downloaded!")
+    } catch {
+      toast.error("Export failed")
     } finally {
-      setExporting(null)
+      setExporting(false)
     }
   }
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md border-b border-slate-100">
+    <header className="top-bar">
       {/* Search */}
-      <div className="hidden md:flex items-center max-w-md flex-1" ref={searchRef}>
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); doSearch(e.target.value) }}
-            onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
-            className="w-full h-9 pl-10 pr-4 rounded-lg bg-slate-50 border-0 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-          />
-          {/* Dropdown results */}
-          {searchOpen && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-              {searchResults.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => { router.push(`/projects/${p.id}`); setSearchOpen(false); setSearchQuery("") }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 border-b border-slate-50 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{p.name}</p>
-                    <p className="text-xs text-slate-400 font-mono">{p.projectId} · {p.location}</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${statusColors[p.status] || "bg-slate-100 text-slate-600"}`}>
-                    {p.status}
-                  </span>
-                </button>
-              ))}
+      <div className="search-bar" ref={searchRef}>
+        <SearchIcon />
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search projects, locations, tracking IDs..."
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); doSearch(e.target.value) }}
+          onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+        />
+        {searching && (
+          <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
+            <LoaderIcon />
+          </div>
+        )}
+
+        {/* Dropdown results */}
+        {searchOpen && searchResults.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            right: 0,
+            background: 'white',
+            border: '1px solid var(--gray-200)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 50,
+            overflow: 'hidden'
+          }}>
+            {searchResults.map((p) => (
               <button
-                onClick={() => { router.push(`/projects?search=${encodeURIComponent(searchQuery)}`); setSearchOpen(false) }}
-                className="w-full text-left px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+                key={p.id}
+                onClick={() => { router.push(`/projects/${p.id}`); setSearchOpen(false); setSearchQuery("") }}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '12px 16px',
+                  borderBottom: '1px solid var(--gray-100)',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--gray-50)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
               >
-                See all results for &quot;{searchQuery}&quot; →
+                <div>
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-900)' }}>{p.name}</p>
+                  <p className="font-mono" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{p.projectId} · {p.location}</p>
+                </div>
+                <span className={statusBadgeClass(p.status)}>
+                  <span className="status-dot"></span>
+                  {p.status}
+                </span>
               </button>
-            </div>
-          )}
-          {searchOpen && searchQuery && searchResults.length === 0 && !searching && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 px-4 py-3 text-sm text-slate-400">
-              No projects found for &quot;{searchQuery}&quot;
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Notifications */}
+      <div className="top-actions">
+        {/* Notification Button */}
         <NotificationBell />
 
-        {/* Export Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setExportOpen(!exportOpen)}
-            disabled={exporting !== null}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 text-sm font-medium transition-colors disabled:opacity-60"
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {exporting ? "Exporting..." : "Export PDF"}
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </button>
+        {/* Export Button */}
+        <button className="btn btn-secondary" onClick={handleExport} disabled={exporting}>
+          {exporting ? <LoaderIcon /> : <ExportIcon />}
+          Export
+        </button>
 
-          {exportOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-100 rounded-xl shadow-lg shadow-slate-200/60 z-20 overflow-hidden py-1.5">
-                <p className="px-4 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Download as PDF</p>
-                <button
-                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                  onClick={() => handleExport("projects")}
-                >
-                  <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-base shrink-0">📊</span>
-                  <div>
-                    <p className="font-medium">Projects Report</p>
-                    <p className="text-xs text-slate-400">All projects with costs</p>
-                  </div>
-                </button>
-                {isAdmin && (
-                  <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                    onClick={() => handleExport("dispatch")}
-                  >
-                    <span className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center text-base shrink-0">🚚</span>
-                    <div>
-                      <p className="font-medium">Dispatch Report</p>
-                      <p className="text-xs text-slate-400">Tracking & delivery info</p>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* New Project */}
-        <button
-          onClick={openNewProjectModal}
-          className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#003c71] hover:bg-[#002a52] active:bg-[#001f3d] text-white text-sm font-medium transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
+        {/* New Project Button */}
+        <button className="btn btn-primary" onClick={openNewProjectModal}>
+          <PlusIcon />
           New Project
         </button>
       </div>

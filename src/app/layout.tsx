@@ -36,7 +36,7 @@ export default function RootLayout({
       className={`${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <SessionProvider>
-        <body className="min-h-full flex flex-col font-sans">
+        <body className="min-h-screen font-sans">
           {children}
           <Toaster />
         </body>

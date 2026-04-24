@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params
     const body = await request.json()
-    const { name, pocId, location, state, deliveryDate, instructions, collaterals, status, note } = body
+    const { name, pocId, location, state, deliveryDate, instructions, collaterals, status, note, dispatch } = body
 
     // Fetch existing project to check ownership and status
     const existing = await prisma.project.findUnique({ where: { id }, select: { pocId: true, status: true } })
@@ -195,6 +195,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })),
       }
       updateData.totalCost = priced.subtotal * (1 + GST_RATE)
+    }
+
+    // Update dispatch if provided
+    if (dispatch && (dispatch.courier || dispatch.trackingId)) {
+      const existingDispatch = await prisma.dispatch.findFirst({ where: { projectId: id } })
+      if (existingDispatch) {
+        await prisma.dispatch.update({
+          where: { id: existingDispatch.id },
+          data: {
+            ...(dispatch.courier !== undefined ? { courier: dispatch.courier } : {}),
+            ...(dispatch.trackingId !== undefined ? { trackingId: dispatch.trackingId } : {}),
+          },
+        })
+      } else {
+        await prisma.dispatch.create({
+          data: {
+            projectId: id,
+            courier: dispatch.courier || "",
+            trackingId: dispatch.trackingId || "",
+            dispatchDate: new Date(),
+          },
+        })
+      }
     }
 
     const project = await prisma.project.update({ where: { id }, data: updateData })

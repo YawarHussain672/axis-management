@@ -2,20 +2,121 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Pencil, UserX, UserCheck, Loader2, Trash2, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
-interface Member { id: string; name: string; phone: string; role: string; active: boolean; location?: string; branch?: string }
+// SVG Icons
+const PlusIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+  </svg>
+)
+
+const EditIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+)
+
+const LoaderIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="animate-spin">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
+
+const CloseIcon = () => (
+  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+)
+
+interface Member { id: string; name: string; email?: string; phone: string; role: string; active: boolean; location?: string; branch?: string }
 
 interface TeamActionsProps {
   mode: "add" | "edit"
   member?: Member
 }
+
+interface ModalProps {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  onClose: () => void
+}
+
+// Modal component - defined outside to prevent recreation on renders
+const Modal = ({ title, subtitle, children, onClose }: ModalProps) => (
+  <div
+    className="modal-overlay"
+    onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(15, 23, 42, 0.6)",
+      backdropFilter: "blur(4px)",
+      zIndex: 9999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px"
+    }}
+  >
+    <div
+      className="modal"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        background: "white",
+        borderRadius: "20px",
+        width: "100%",
+        maxWidth: "600px",
+        maxHeight: "90vh",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+      }}
+    >
+      {/* Modal Header */}
+      <div
+        style={{
+          padding: "24px 32px",
+          borderBottom: "1px solid var(--gray-200)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start"
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</h2>
+          {subtitle && <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "4px" }}>{subtitle}</p>}
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            width: "36px",
+            height: "36px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--gray-400)",
+            background: "transparent",
+            border: "none",
+            borderRadius: "10px",
+            cursor: "pointer",
+            fontSize: "24px"
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.color = "var(--gray-600)" }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gray-400)" }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Modal Body */}
+      <div style={{ padding: "24px 32px", overflowY: "auto", flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+)
 
 export function TeamActions({ mode, member }: TeamActionsProps) {
   const router = useRouter()
@@ -39,22 +140,34 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
       const method = mode === "add" ? "POST" : "PUT"
       const body = mode === "add" ? form : { name: form.name, phone: form.phone, role: form.role, location: form.location, branch: form.branch }
 
+      console.log(`[TeamActions] Saving: ${method} ${url}`, body)
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
 
+      console.log(`[TeamActions] Response status: ${res.status}`)
+
       if (res.ok) {
         toast.success(mode === "add" ? "Team member added!" : "Member updated!")
         setOpen(false)
         router.refresh()
       } else {
-        const data = await res.json()
-        toast.error(data.error || "Failed")
+        const text = await res.text()
+        console.error(`[TeamActions] Error response: ${text}`)
+        let data
+        try {
+          data = JSON.parse(text)
+        } catch {
+          data = { error: text || `HTTP ${res.status}` }
+        }
+        toast.error(data.error || `Failed (${res.status})`)
       }
-    } catch {
-      toast.error("Something went wrong")
+    } catch (err) {
+      console.error("[TeamActions] Save error:", err)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
     }
@@ -105,155 +218,244 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
   if (mode === "add") {
     return (
       <>
-        <Button className="gap-2 bg-[#003c71] hover:bg-[#002a52]" onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" /> Add Member
-        </Button>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader><DialogTitle>Add Team Member</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Full Name</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" className="h-9" />
+        <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <PlusIcon /> Add Team Member
+        </button>
+
+        {open && (
+          <Modal title="Add Team Member" subtitle="Add a new POC or admin to the system" onClose={() => setOpen(false)}>
+            <form className="form-grid" onSubmit={(e) => { e.preventDefault(); handleSave() }}>
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="John Doe"
+                  required
+                />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Email</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@axismaxlife.com" className="h-9" />
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="john@axismaxlife.com"
+                  required
+                />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Phone</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" className="h-9" />
+              <div className="form-group">
+                <label className="form-label">Phone</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Role</Label>
-                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POC">POC</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="form-group">
+                <label className="form-label">Role</label>
+                <select
+                  className="form-select"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                >
+                  <option value="POC">POC</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Password</Label>
-                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" className="h-9" />
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Min 8 characters"
+                  required
+                />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Location</Label>
-                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g., Mumbai, Delhi" className="h-9" />
+              <div className="form-group">
+                <label className="form-label">Location</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="e.g., Mumbai, Delhi"
+                />
               </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-xs">Branch</Label>
-                <Input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="e.g., Connaught Place Branch, Andheri Branch" className="h-9" />
+              <div className="form-group full-width">
+                <label className="form-label">Branch</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={form.branch}
+                  onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                  placeholder="e.g., Connaught Place Branch, Andheri Branch"
+                />
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)} size="sm">Cancel</Button>
-              <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading} size="sm">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Member"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <div className="form-group full-width" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading ? <><LoaderIcon /> Adding...</> : "Add Member"}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
       </>
     )
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={`h-8 w-8 ${member?.active ? "text-red-500 hover:bg-red-50" : "text-green-600 hover:bg-green-50"}`}
+    <div style={{ display: 'flex', gap: '6px' }}>
+      {/* Edit Button */}
+      <button
+        className="btn btn-secondary"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+        style={{ padding: '6px 10px', fontSize: '12px' }}
+      >
+        <EditIcon />
+      </button>
+
+      {/* Toggle Active Button */}
+      <button
+        className="btn btn-secondary"
         onClick={handleToggleActive}
         disabled={loading}
+        style={{ padding: '6px 10px', fontSize: '12px' }}
       >
-        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : member?.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-      </Button>
+        {loading ? <LoaderIcon /> : (member?.active ? 'Deactivate' : 'Activate')}
+      </button>
 
-      {/* Permanent delete button - only for inactive accounts */}
-      {member && !member.active && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-red-600 hover:bg-red-50"
-          onClick={() => setShowDeleteConfirm(true)}
-          disabled={loading}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+      {/* Edit Modal */}
+      {open && (
+        <Modal title="Edit Team Member" subtitle={member?.name} onClose={() => setOpen(false)}>
+          <form className="form-grid" onSubmit={(e) => { e.preventDefault(); handleSave() }}>
+            <div className="form-group">
+              <label className="form-label">Full Name</label>
+              <input
+                type="text"
+                className="form-input"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Phone</label>
+              <input
+                type="tel"
+                className="form-input"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Role</label>
+              <select
+                className="form-select"
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+              >
+                <option value="POC">POC</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Location</label>
+              <input
+                type="text"
+                className="form-input"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                placeholder="e.g., Mumbai, Delhi"
+              />
+            </div>
+            <div className="form-group full-width">
+              <label className="form-label">Branch</label>
+              <input
+                type="text"
+                className="form-input"
+                value={form.branch}
+                onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                placeholder="e.g., Connaught Place Branch"
+              />
+            </div>
+            <div className="form-group full-width" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? <><LoaderIcon /> Saving...</> : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader><DialogTitle>Edit Member</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Full Name</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-9" />
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false) }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px"
+          }}
+        >
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "white",
+              borderRadius: "20px",
+              width: "100%",
+              maxWidth: "400px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+            }}
+          >
+            <div style={{ padding: "24px 32px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 800, color: "var(--color-error)", marginBottom: "8px" }}>
+                Permanently Delete Account?
+              </h2>
+              <p style={{ fontSize: "14px", color: "var(--gray-600)" }}>
+                This action cannot be undone. {member?.name}&apos;s account will be permanently removed.
+              </p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Phone</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Role</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="POC">POC</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Location</Label>
-              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g., Mumbai, Delhi" className="h-9" />
-            </div>
-            <div className="space-y-1 col-span-2">
-              <Label className="text-xs">Branch</Label>
-              <Input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="e.g., Connaught Place Branch" className="h-9" />
+            <div style={{ padding: "16px 32px 24px", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button
+                className="btn"
+                onClick={handlePermanentDelete}
+                disabled={loading}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  background: "var(--color-error)",
+                  color: "white",
+                  border: "none",
+                  cursor: "pointer"
+                }}
+              >
+                {loading ? <LoaderIcon /> : "Delete Permanently"}
+              </button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} size="sm">Cancel</Button>
-            <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={handleSave} disabled={loading} size="sm">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Permanent Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Permanently Delete Account?
-            </DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. {member?.name}&apos;s account will be permanently removed from the database.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handlePermanentDelete}
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Permanently"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   )
 }

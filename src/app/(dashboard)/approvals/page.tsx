@@ -2,11 +2,10 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { formatDate, formatCurrency } from "@/utils/formatters"
-import { CheckCircle } from "lucide-react"
 import { Prisma } from "@prisma/client"
 import { ApprovalActions } from "@/components/approvals/approval-actions"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 type ApprovalWithRelations = Prisma.ApprovalGetPayload<{
   include: {
@@ -43,69 +42,96 @@ export default async function ApprovalsPage() {
 
   const approvals = await getPendingApprovals(session.user.id, isAdmin)
 
+  // Empty state icon
+  const CheckIcon = () => (
+    <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-gray-900">Pending Approvals</h1>
-        <p className="text-gray-500 mt-1">Review and approve project requests</p>
+    <div>
+      {/* Page Header */}
+      <div className="page-header">
+        <h1 className="page-title">Pending Approvals</h1>
+        <p className="page-subtitle">Review and approve project requests</p>
       </div>
 
-      <div className="grid gap-4">
+      {/* Approval Cards */}
+      <div style={{ display: 'grid', gap: '20px' }}>
         {approvals.map((approval: ApprovalWithRelations) => (
-          <Card key={approval.id} className="overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
-            <div className="h-1 bg-linear-to-r from-purple-400 to-purple-600" />
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="font-mono font-bold text-[#003c71] bg-blue-50 px-2 py-0.5 rounded text-sm">
-                      {approval.project.projectId}
-                    </span>
-                    <span className="text-xs bg-purple-100 text-purple-700 font-semibold px-2 py-0.5 rounded-full">PENDING</span>
+          <div
+            key={approval.id}
+            className="card"
+            style={{
+              borderLeft: '4px solid var(--status-requested)'
+            }}
+          >
+            <div style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Approval Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span className="project-id">{approval.project.projectId}</span>
+                      <StatusBadge status={approval.project.status} />
+                    </div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px', color: 'var(--gray-900)' }}>
+                      {approval.project.name}
+                    </h3>
+                    <p style={{ fontSize: '14px', color: 'var(--gray-600)' }}>
+                      <strong>POC:</strong> {approval.requestedBy?.name} | <strong>Location:</strong> {approval.project.location}{approval.project.state ? `, ${approval.project.state}` : ""}
+                    </p>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">{approval.project.name}</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Requested by <strong>{approval.requestedBy?.name}</strong> · {approval.project.location}{approval.project.state ? `, ${approval.project.state}` : ""}
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-xl">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Materials</p>
-                      <p className="font-semibold text-sm text-gray-800">
-                        {approval.project.collaterals.map((c: Prisma.CollateralGetPayload<Record<string, never>>) => c.itemName).join(", ")}
-                      </p>
+                  <ApprovalActions approvalId={approval.id} reminderCount={approval.reminderCount} isAdmin={isAdmin} />
+                </div>
+
+                {/* Approval Details Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '16px',
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--gray-200)'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', marginBottom: '4px' }}>Material</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {approval.project.collaterals.map((c: Prisma.CollateralGetPayload<Record<string, never>>) => c.itemName).join(", ")}
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Quantity</p>
-                      <p className="font-mono font-bold text-gray-800">
-                        {approval.project.collaterals.reduce((sum: number, c: Prisma.CollateralGetPayload<Record<string, never>>) => sum + c.quantity, 0).toLocaleString()}
-                      </p>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', marginBottom: '4px' }}>Quantity</div>
+                    <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                      {approval.project.collaterals.reduce((sum: number, c: Prisma.CollateralGetPayload<Record<string, never>>) => sum + c.quantity, 0).toLocaleString()}
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Delivery Date</p>
-                      <p className="font-semibold text-sm text-gray-800">{formatDate(approval.project.deliveryDate)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Estimated Cost</p>
-                      <p className="font-mono font-bold text-[#003c71]">{formatCurrency(approval.project.totalCost)}</p>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', marginBottom: '4px' }}>Delivery Date</div>
+                    <div style={{ fontWeight: 600 }}>{formatDate(approval.project.deliveryDate)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', marginBottom: '4px' }}>Estimated Cost</div>
+                    <div style={{ fontWeight: 700, color: 'var(--axis-primary)', fontFamily: 'var(--font-mono)' }}>
+                      {formatCurrency(approval.project.totalCost)}
                     </div>
                   </div>
                 </div>
-                <ApprovalActions approvalId={approval.id} reminderCount={approval.reminderCount} isAdmin={isAdmin} />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
 
+        {/* Empty State */}
         {approvals.length === 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="py-16 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">All caught up!</h3>
-              <p className="text-gray-500">No pending approvals at the moment</p>
-            </CardContent>
-          </Card>
+          <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
+            <div style={{ width: '64px', height: '64px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--color-success)' }}>
+              <CheckIcon />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--gray-900)', marginBottom: '4px' }}>All caught up!</h3>
+            <p style={{ color: 'var(--gray-500)' }}>No pending approvals at the moment</p>
+          </div>
         )}
       </div>
     </div>

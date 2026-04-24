@@ -1,13 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { X } from "lucide-react"
 import { NewProjectForm } from "./new-project-form"
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 
 // Global event name for triggering the modal
@@ -21,12 +15,23 @@ export function openNewProjectModal() {
   }
 }
 
+// Close icon SVG
+const CloseIcon = () => (
+  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+)
+
 export function NewProjectModal() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
 
   const handleOpen = useCallback(() => {
     setIsOpen(true)
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false)
   }, [])
 
   const handleSuccess = () => {
@@ -36,36 +41,110 @@ export function NewProjectModal() {
     router.refresh()
   }
 
+  // Close on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false)
+    }
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape)
+      document.body.style.overflow = "hidden"
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape)
+      document.body.style.overflow = "unset"
+    }
+  }, [isOpen])
+
   useEffect(() => {
     window.addEventListener(OPEN_NEW_PROJECT_MODAL_EVENT, handleOpen)
     return () => window.removeEventListener(OPEN_NEW_PROJECT_MODAL_EVENT, handleOpen)
   }, [handleOpen])
 
+  if (!isOpen) return null
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-hidden p-0 gap-0 bg-white border-0 shadow-2xl shadow-slate-400/40 rounded-2xl">
-        {/* Hidden title for accessibility */}
-        <DialogTitle className="sr-only">Create New Project</DialogTitle>
-        {/* Clean Header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Create New Project</h2>
-              <p className="text-base text-slate-500 mt-1">Add multiple collaterals in a single project</p>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+    <div
+      className="modal-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.6)",
+        backdropFilter: "blur(4px)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px"
+      }}
+    >
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white",
+          borderRadius: "20px",
+          width: "100%",
+          maxWidth: "900px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+        }}
+      >
+        {/* Modal Header */}
+        <div
+          className="modal-header"
+          style={{
+            padding: "24px 32px",
+            borderBottom: "1px solid var(--gray-200)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start"
+          }}
+        >
+          <div>
+            <h2 className="modal-title" style={{ fontSize: "24px", fontWeight: 800, color: "var(--gray-900)", marginBottom: "4px" }}>
+              Create New Project
+            </h2>
+            <p className="modal-subtitle" style={{ fontSize: "14px", color: "var(--gray-500)" }}>
+              Add multiple collaterals in a single project
+            </p>
           </div>
+          <button
+            onClick={handleClose}
+            style={{
+              width: "36px",
+              height: "36px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--gray-400)",
+              background: "transparent",
+              border: "none",
+              borderRadius: "10px",
+              cursor: "pointer"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.color = "var(--gray-600)" }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gray-400)" }}
+          >
+            <CloseIcon />
+          </button>
         </div>
-        <div className="p-6 pb-10 overflow-y-auto max-h-[calc(90vh-80px)] bg-white animate-in fade-in zoom-in-95 duration-200">
-          <NewProjectForm onSuccess={handleSuccess} onCancel={() => setIsOpen(false)} />
+
+        {/* Modal Body */}
+        <div
+          className="modal-body"
+          style={{
+            padding: "32px",
+            overflowY: "auto",
+            flex: 1
+          }}
+        >
+          <NewProjectForm onSuccess={handleSuccess} onCancel={handleClose} />
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

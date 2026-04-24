@@ -2,19 +2,43 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Save, Trash2, Loader2, Receipt } from "lucide-react"
 import { toast } from "sonner"
 
 type VolumeSlab = { slab: string; price: number }
 interface RateCardItem { id: string; itemName: string; specification: string; volumeSlabs: unknown; active: boolean }
 
 interface RateCardClientProps { initialItems: RateCardItem[] }
+
+// SVG Icons
+const CheckIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+  </svg>
+)
+
+const PlusIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
+const LoaderIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="animate-spin">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
+
+const ReceiptIcon = () => (
+  <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+  </svg>
+)
 
 export function RateCardClient({ initialItems }: RateCardClientProps) {
   const router = useRouter()
@@ -103,132 +127,283 @@ export function RateCardClient({ initialItems }: RateCardClientProps) {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Rate Card</h1>
-          <p className="text-gray-500 mt-1">Manage pricing for all print collaterals</p>
+  // Modal component for Add Item
+  const Modal = ({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void }) => (
+    <div
+      className="modal-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.6)",
+        backdropFilter: "blur(4px)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px"
+      }}
+    >
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "white",
+          borderRadius: "20px",
+          width: "100%",
+          maxWidth: "500px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+        }}
+      >
+        {/* Modal Header */}
+        <div
+          style={{
+            padding: "24px 32px",
+            borderBottom: "1px solid var(--gray-200)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start"
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</h2>
+            {subtitle && <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "4px" }}>{subtitle}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: "36px",
+              height: "36px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--gray-400)",
+              background: "transparent",
+              border: "none",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "24px"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.color = "var(--gray-600)" }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gray-400)" }}
+          >
+            ×
+          </button>
         </div>
-        <Button className="gap-2 bg-[#003c71] hover:bg-[#002a52]" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4" /> Add Item
-        </Button>
+
+        {/* Modal Body */}
+        <div style={{ padding: "24px 32px", overflowY: "auto", flex: 1 }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Page Header */}
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">Rate Card Management</h1>
+          <p className="page-subtitle">View and edit pricing for all collaterals</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-primary" onClick={() => setAddOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <PlusIcon /> Add Item
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              // Save all edited items
+              items.forEach(item => {
+                if (editingId === item.id) saveItem(item)
+              })
+              toast.success("Rate card saved successfully!")
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <CheckIcon /> Save Changes
+          </button>
+        </div>
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50/80 hover:bg-gray-50">
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider w-10">#</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Item</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Specification</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider">Volume Slabs & Pricing (₹)</TableHead>
-                <TableHead className="font-bold text-gray-500 uppercase text-xs tracking-wider w-28">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      {/* Rate Card Table */}
+      <div className="card">
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" id="rateCardTable">
+            <thead>
+              <tr>
+                <th style={{ width: '50px' }}>#</th>
+                <th>Item</th>
+                <th>Specification</th>
+                <th>Volume Slabs & Pricing</th>
+                <th style={{ width: '100px' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
               {items.map((item, index) => (
-                <TableRow key={item.id} className={`hover:bg-gray-50/50 ${editingId === item.id ? "bg-amber-50/30" : ""}`}>
-                  <TableCell className="font-mono text-gray-400 text-sm">{index + 1}</TableCell>
-                  <TableCell className="font-semibold text-gray-900">{item.itemName}</TableCell>
-                  <TableCell className="text-sm text-gray-500 max-w-[200px]">{item.specification}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {getSlabs(item).map((slab, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-lg text-sm">
-                          <span className="text-gray-400 text-xs font-medium">{slab.slab}:</span>
-                          <span className="text-gray-300">₹</span>
-                          <Input
+                <tr key={item.id} style={{ background: editingId === item.id ? 'rgba(245, 158, 11, 0.05)' : undefined }}>
+                  <td className="font-mono">{index + 1}</td>
+                  <td><strong>{item.itemName}</strong></td>
+                  <td style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{item.specification}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {getSlabs(item).slice(0, 4).map((slab, idx) => (
+                        <div key={idx} style={{ background: 'var(--gray-50)', padding: '6px 12px', borderRadius: '6px', fontSize: '12px' }}>
+                          <span style={{ color: 'var(--gray-600)' }}>{slab.slab}:</span>
+                          <input
                             type="number"
                             defaultValue={slab.price}
                             step="0.01"
-                            className="w-20 h-6 text-sm font-mono border-0 bg-transparent p-0 focus-visible:ring-0"
-                            onChange={(e) => updateSlab(item.id, idx, parseFloat(e.target.value) || 0)}
+                            data-item={item.id}
+                            data-slab={slab.slab}
+                            onChange={(e) => {
+                              updateSlab(item.id, idx, parseFloat(e.target.value) || 0)
+                            }}
+                            style={{
+                              width: '70px',
+                              border: '1px solid var(--gray-300)',
+                              borderRadius: '4px',
+                              padding: '4px 8px',
+                              marginLeft: '4px',
+                              fontWeight: 700,
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '12px'
+                            }}
                           />
                         </div>
                       ))}
+                      {getSlabs(item).length > 4 && (
+                        <span style={{ color: 'var(--gray-500)', fontSize: '12px' }}>+{getSlabs(item).length - 4} more</span>
+                      )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '6px' }}>
                       {editingId === item.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-green-600 hover:bg-green-50"
+                        <button
+                          className="btn btn-secondary"
                           onClick={() => saveItem(item)}
                           disabled={saving === item.id}
+                          style={{ padding: '6px 10px', fontSize: '12px', color: 'var(--color-success)' }}
                         >
-                          {saving === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        </Button>
+                          {saving === item.id ? <LoaderIcon /> : <CheckIcon />}
+                        </button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-500 hover:bg-red-50"
+                      <button
+                        className="btn btn-secondary"
                         onClick={() => deleteItem(item.id, item.itemName)}
                         disabled={saving === item.id}
+                        style={{ padding: '6px 10px', fontSize: '12px', color: 'var(--color-error)' }}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        <TrashIcon />
+                      </button>
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
               {items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-gray-400">
-                    <Receipt className="h-12 w-12 mx-auto mb-3 text-gray-200" />
-                    <p className="font-medium">No rate card items</p>
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '60px', color: 'var(--gray-400)' }}>
+                    <div style={{ color: 'var(--gray-300)', marginBottom: '12px' }}>
+                      <ReceiptIcon />
+                    </div>
+                    <p style={{ fontWeight: 500 }}>No rate card items</p>
+                  </td>
+                </tr>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Add Rate Card Item</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Item Name</Label>
-              <Input value={newItem.itemName} onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })} placeholder="e.g. Flier" />
+      {/* Add Item Modal */}
+      {addOpen && (
+        <Modal title="Add Rate Card Item" subtitle="Add a new item to the rate card" onClose={() => setAddOpen(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Item Name</label>
+              <input
+                type="text"
+                className="form-input"
+                value={newItem.itemName}
+                onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
+                placeholder="e.g. Flier"
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label>Specification</Label>
-              <Input value={newItem.specification} onChange={(e) => setNewItem({ ...newItem, specification: e.target.value })} placeholder="e.g. A4, 90 GSM, 4+4 color" />
+            <div className="form-group">
+              <label className="form-label">Specification</label>
+              <input
+                type="text"
+                className="form-input"
+                value={newItem.specification}
+                onChange={(e) => setNewItem({ ...newItem, specification: e.target.value })}
+                placeholder="e.g. A4, 90 GSM, 4+4 color"
+              />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Volume Slabs</Label>
-                <Button type="button" variant="outline" size="sm" onClick={() => setNewItem({ ...newItem, slabs: [...newItem.slabs, { slab: "", price: 0 }] })}>
-                  <Plus className="h-3 w-3 mr-1" /> Add Slab
-                </Button>
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label className="form-label">Volume Slabs</label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setNewItem({ ...newItem, slabs: [...newItem.slabs, { slab: "", price: 0 }] })}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
+                  <PlusIcon /> Add Slab
+                </button>
               </div>
               {newItem.slabs.map((slab, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input placeholder="Volume (e.g. 1000)" value={slab.slab} onChange={(e) => { const s = [...newItem.slabs]; s[idx].slab = e.target.value; setNewItem({ ...newItem, slabs: s }) }} />
-                  <Input type="number" placeholder="Price ₹" value={slab.price || ""} onChange={(e) => { const s = [...newItem.slabs]; s[idx].price = parseFloat(e.target.value) || 0; setNewItem({ ...newItem, slabs: s }) }} />
+                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Volume (e.g. 1000)"
+                    value={slab.slab}
+                    onChange={(e) => {
+                      const s = [...newItem.slabs]
+                      s[idx].slab = e.target.value
+                      setNewItem({ ...newItem, slabs: s })
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="Price ₹"
+                    value={slab.price || ""}
+                    onChange={(e) => {
+                      const s = [...newItem.slabs]
+                      s[idx].price = parseFloat(e.target.value) || 0
+                      setNewItem({ ...newItem, slabs: s })
+                    }}
+                    style={{ width: '120px' }}
+                  />
                   {newItem.slabs.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" className="text-red-500 shrink-0" onClick={() => setNewItem({ ...newItem, slabs: newItem.slabs.filter((_, i) => i !== idx) })}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setNewItem({ ...newItem, slabs: newItem.slabs.filter((_, i) => i !== idx) })}
+                      style={{ padding: '6px 10px', color: 'var(--color-error)' }}
+                    >
+                      <TrashIcon />
+                    </button>
                   )}
                 </div>
               ))}
             </div>
+            <div className="form-group" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={addNewItem} disabled={addLoading}>
+                {addLoading ? <><LoaderIcon /> Adding...</> : "Add Item"}
+              </button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button className="bg-[#003c71] hover:bg-[#002a52]" onClick={addNewItem} disabled={addLoading}>
-              {addLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Item"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </Modal>
+      )}
     </div>
   )
 }

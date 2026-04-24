@@ -2,15 +2,35 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, AlertCircle, Loader2 } from "lucide-react"
 import { formatCurrency, applyGST, getGSTAmount } from "@/utils/formatters"
 import { toast } from "sonner"
 import { BRANCH_LOCATIONS, CITIES } from "@/lib/branch-locations"
 import { getUnitPriceFromSlabs, type VolumeSlab } from "@/lib/rate-card-pricing"
+
+// SVG Icons
+const PlusIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
+const AlertIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+
+const LoaderIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="animate-spin">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
 
 interface CollateralItem { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }
 interface POC { id: string; name: string; email: string }
@@ -156,227 +176,226 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-        {/* Project Details Section */}
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-base font-semibold text-slate-800">Project Name <span className="text-red-500">*</span></Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setErrors({ ...errors, name: "" }) }}
-                placeholder="Enter project name"
-                className={`h-12 rounded-lg text-base ${errors.name ? "border-red-400" : "border-slate-300"}`}
-              />
-              {errors.name && <p className="text-sm text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded"><AlertCircle className="h-4 w-4" />{errors.name}</p>}
-            </div>
+    <div>
+      <form onSubmit={handleSubmit} noValidate>
+        {/* Project Details Card */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Project Details</h3>
+          </div>
+          <div style={{ padding: '24px' }}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Project Name <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <input
+                  type="text"
+                  className={`form-input ${errors.name ? 'border-red-400' : ''}`}
+                  value={formData.name}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setFormData({ ...formData, name: e.target.value }); setErrors({ ...errors, name: "" }) }}
+                  placeholder="Enter project name"
+                />
+                {errors.name && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.name}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold text-slate-800">POC Name <span className="text-red-500">*</span></Label>
-              <Select value={formData.pocId} onValueChange={(v) => { setFormData({ ...formData, pocId: v }); setErrors({ ...errors, pocId: "" }) }} disabled={isFetching}>
-                <SelectTrigger className={`h-12 rounded-lg text-base ${errors.pocId ? "border-red-400" : "border-slate-300"} ${isFetching ? "bg-slate-100 animate-pulse" : ""}`}>
-                  <SelectValue placeholder={isFetching ? "Loading..." : "Select POC"} />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="form-group">
+                <label className="form-label">POC Name <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <select
+                  className={`form-select ${errors.pocId ? 'border-red-400' : ''}`}
+                  value={formData.pocId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setFormData({ ...formData, pocId: e.target.value }); setErrors({ ...errors, pocId: "" }) }}
+                  disabled={isFetching}
+                >
+                  <option value="">{isFetching ? "Loading..." : "Select POC"}</option>
                   {pocs.map((poc) => (
-                    <SelectItem key={poc.id} value={poc.id}>{poc.name}</SelectItem>
+                    <option key={poc.id} value={poc.id}>{poc.name}</option>
                   ))}
-                </SelectContent>
-              </Select>
-              {errors.pocId && <p className="text-sm text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded"><AlertCircle className="h-4 w-4" />{errors.pocId}</p>}
-            </div>
+                </select>
+                {errors.pocId && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.pocId}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold text-slate-800">City <span className="text-red-500">*</span></Label>
-              <Select value={formData.city} onValueChange={(v) => { setFormData({ ...formData, city: v, branch: "" }); setErrors({ ...errors, city: "", branch: "" }) }}>
-                <SelectTrigger className={`h-12 rounded-lg text-base ${errors.city ? "border-red-400" : "border-slate-300"}`}>
-                  <SelectValue placeholder="Select City" />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="form-group">
+                <label className="form-label">City <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <select
+                  className={`form-select ${errors.city ? 'border-red-400' : ''}`}
+                  value={formData.city}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setFormData({ ...formData, city: e.target.value, branch: "" }); setErrors({ ...errors, city: "", branch: "" }) }}
+                >
+                  <option value="">Select City</option>
                   {CITIES.map((city) => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                    <option key={city} value={city}>{city}</option>
                   ))}
-                </SelectContent>
-              </Select>
-              {errors.city && <p className="text-sm text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded"><AlertCircle className="h-4 w-4" />{errors.city}</p>}
-            </div>
+                </select>
+                {errors.city && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.city}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold text-slate-800">Branch <span className="text-red-500">*</span></Label>
-              <Select value={formData.branch} onValueChange={(v) => { setFormData({ ...formData, branch: v }); setErrors({ ...errors, branch: "" }) }} disabled={!formData.city}>
-                <SelectTrigger className={`h-12 rounded-lg text-base ${errors.branch ? "border-red-400" : "border-slate-300"}`}>
-                  <SelectValue placeholder={formData.city ? "Select Branch" : "Select city first"} />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="form-group">
+                <label className="form-label">Branch <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <select
+                  className={`form-select ${errors.branch ? 'border-red-400' : ''}`}
+                  value={formData.branch}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setFormData({ ...formData, branch: e.target.value }); setErrors({ ...errors, branch: "" }) }}
+                  disabled={!formData.city}
+                >
+                  <option value="">{formData.city ? "Select Branch" : "Select city first"}</option>
                   {cityData?.branches.map((branch: string) => (
-                    <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+                    <option key={branch} value={branch}>{branch}</option>
                   ))}
-                </SelectContent>
-              </Select>
-              {errors.branch && <p className="text-sm text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded"><AlertCircle className="h-4 w-4" />{errors.branch}</p>}
-            </div>
+                </select>
+                {errors.branch && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.branch}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-semibold text-slate-800">Delivery Date <span className="text-red-500">*</span></Label>
-              <Input
-                type="date"
-                min={today}
-                value={formData.deliveryDate}
-                onChange={(e) => { setFormData({ ...formData, deliveryDate: e.target.value }); setErrors({ ...errors, deliveryDate: "" }) }}
-                className={`h-12 rounded-lg text-base ${errors.deliveryDate ? "border-red-400" : "border-slate-300"}`}
-              />
-              {errors.deliveryDate && <p className="text-sm text-red-600 font-semibold flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded"><AlertCircle className="h-4 w-4" />{errors.deliveryDate}</p>}
+              <div className="form-group full-width">
+                <label className="form-label">Delivery Date <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <input
+                  type="date"
+                  min={today}
+                  className={`form-input ${errors.deliveryDate ? 'border-red-400' : ''}`}
+                  style={{ width: '200px' }}
+                  value={formData.deliveryDate}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setFormData({ ...formData, deliveryDate: e.target.value }); setErrors({ ...errors, deliveryDate: "" }) }}
+                />
+                {errors.deliveryDate && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.deliveryDate}</p>}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Collaterals Section */}
-        <div className="space-y-4">
-          <Label className="text-base font-semibold text-slate-800">Collaterals (Add Multiple Items) <span className="text-red-500">*</span></Label>
-
-          {errors.collaterals && (
-            <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg text-base font-bold text-red-700 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              {errors.collaterals}
-            </div>
-          )}
-
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-3 text-sm font-bold text-slate-600 px-1">
-            <div className="col-span-4">Item</div>
-            <div className="col-span-2">Quantity</div>
-            <div className="col-span-3">Unit Price</div>
-            <div className="col-span-2">Total</div>
-            <div className="col-span-1"></div>
+        {/* Collaterals Card */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Collaterals (Add Multiple Items) <span style={{ color: 'var(--color-error)' }}>*</span></h3>
           </div>
-
-          {/* Collateral Rows */}
-          {collaterals.map((collateral, index) => (
-            <div key={collateral.id} className="grid grid-cols-12 gap-3 items-start">
-              <div className="col-span-4">
-                <Select value={collateral.itemName} onValueChange={(v) => updateCollateral(collateral.id, "itemName", v)} disabled={isFetching}>
-                  <SelectTrigger className={`h-11 rounded-lg border-slate-300 text-base ${isFetching ? "bg-slate-100 animate-pulse" : ""}`}>
-                    <SelectValue placeholder={isFetching ? "Loading..." : "Select Item"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rateCards.map((item) => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+          <div style={{ padding: '24px' }}>
+            {errors.collaterals && (
+              <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-error)', borderRadius: '10px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <AlertIcon /> {errors.collaterals}
               </div>
-              <div className="col-span-2">
-                <Input
+            )}
+
+            {/* Table Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr auto', gap: '12px', fontSize: '12px', fontWeight: 800, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 8px 8px', borderBottom: '1px solid var(--gray-200)' }}>
+              <div>Item</div>
+              <div>Quantity</div>
+              <div>Unit Price</div>
+              <div>Total</div>
+              <div></div>
+            </div>
+
+            {/* Collateral Rows */}
+            {collaterals.map((collateral, index) => (
+              <div key={collateral.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr 1fr auto', gap: '12px', padding: '12px 8px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center' }}>
+                <select
+                  className="form-select"
+                  value={collateral.itemName}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateCollateral(collateral.id, "itemName", e.target.value)}
+                  disabled={isFetching}
+                >
+                  <option value="">{isFetching ? "Loading..." : "Select Item"}</option>
+                  {rateCards.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                </select>
+                <input
                   type="number"
                   min="1"
+                  className={`form-input ${errors[`qty_${index}`] ? 'border-red-400' : ''}`}
                   value={collateral.quantity || ""}
-                  onChange={(e) => updateCollateral(collateral.id, "quantity", parseInt(e.target.value) || 0)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateCollateral(collateral.id, "quantity", parseInt(e.target.value) || 0)}
                   placeholder="0"
-                  className={`h-11 rounded-lg text-base ${errors[`qty_${index}`] ? "border-red-400" : "border-slate-300"}`}
                 />
-              </div>
-              <div className="col-span-3">
-                <Input
+                <input
                   type="number"
                   step="0.01"
+                  className={`form-input ${errors[`price_${index}`] ? 'border-red-400' : ''}`}
                   value={collateral.unitPrice || ""}
-                  onChange={(e) => updateCollateral(collateral.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateCollateral(collateral.id, "unitPrice", parseFloat(e.target.value) || 0)}
                   placeholder="0.00"
-                  className={`h-11 rounded-lg text-base ${errors[`price_${index}`] ? "border-red-400" : "border-slate-300"}`}
                 />
-              </div>
-              <div className="col-span-2">
-                <div className="h-11 flex items-center justify-end px-3 bg-slate-100 rounded-lg font-mono text-base font-bold text-slate-800">
+                <div style={{ padding: '10px 12px', background: 'var(--gray-100)', borderRadius: '10px', fontFamily: 'var(--font-mono)', fontWeight: 700, textAlign: 'right', color: 'var(--gray-800)' }}>
                   {formatCurrency(collateral.totalPrice)}
                 </div>
-              </div>
-              <div className="col-span-1 flex justify-center">
                 {collaterals.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeCollateral(collateral.id)}
-                    className="h-11 w-11 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-400)', borderRadius: '10px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-error)'; e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--gray-400)'; e.currentTarget.style.background = 'transparent' }}
                   >
-                    <Trash2 className="h-5 w-5" />
+                    <TrashIcon />
                   </button>
                 )}
               </div>
+            ))}
+
+            {/* Add Button */}
+            <button
+              type="button"
+              onClick={addCollateral}
+              disabled={isFetching}
+              style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '10px', background: 'var(--axis-accent)', color: 'white', fontWeight: 700, fontSize: '14px', border: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-md)' }}
+            >
+              {isFetching ? <><LoaderIcon /> Loading...</> : <><PlusIcon /> Add Another Collateral</>}
+            </button>
+          </div>
+        </div>
+
+        {/* Instructions Card */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Special Instructions</h3>
+            <p style={{ fontSize: '13px', color: 'var(--gray-500)', margin: 0 }}>Add any specific requirements, delivery notes, or special handling instructions</p>
+          </div>
+          <div style={{ padding: '24px' }}>
+            <textarea
+              className="form-textarea"
+              rows={5}
+              value={formData.instructions}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, instructions: e.target.value })}
+              placeholder="E.g., Delivery between 9 AM - 5 PM only, Handle with care, Contact POC before dispatch..."
+              style={{ width: '100%', resize: 'vertical', minHeight: '120px' }}
+            />
+          </div>
+        </div>
+
+        {/* Cost Summary Card */}
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header">
+            <h3 className="card-title">Cost Summary</h3>
+          </div>
+          <div style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>Subtotal (Before GST):</span>
+              <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gray-800)' }}>{formatCurrency(subtotal)}</span>
             </div>
-          ))}
-
-          {/* Cyan Add Button */}
-          <button
-            type="button"
-            onClick={addCollateral}
-            disabled={isFetching}
-            className="flex items-center gap-2 h-10 px-5 rounded-lg bg-cyan-500 hover:bg-cyan-600 disabled:bg-cyan-300 text-white font-semibold text-base shadow-md shadow-cyan-500/25 transition-all"
-          >
-            {isFetching ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-              </>
-            ) : (
-              <>
-                <Plus className="h-5 w-5" /> Add Another Collateral
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Special Instructions */}
-        <div className="space-y-2">
-          <Label className="text-base font-semibold text-slate-800">Special Instructions</Label>
-          <Textarea
-            value={formData.instructions}
-            onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
-            placeholder="Any special requirements..."
-            rows={2}
-            className="rounded-lg border-slate-300 text-base resize-none"
-          />
-        </div>
-
-        {/* Cost Summary */}
-        <div className="bg-slate-50 rounded-xl p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-base font-medium text-slate-600">Subtotal (Before GST):</span>
-            <span className="font-mono text-lg font-bold text-slate-800">{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-base font-medium text-slate-600">GST @ 18%:</span>
-            <span className="font-mono text-lg font-bold text-slate-800">{formatCurrency(gstAmount)}</span>
-          </div>
-          <div className="flex items-center justify-between pt-4 border-t-2 border-slate-200">
-            <span className="text-lg font-bold text-slate-800">Total Payable:</span>
-            <span className="font-mono text-3xl font-extrabold text-[#003c71]">{formatCurrency(totalCost)}</span>
-          </div>
-          <div className="flex items-start gap-2 pt-2">
-            <span className="text-lg">💡</span>
-            <p className="text-sm text-slate-500">All prices exclude GST. Final invoice will include 18% GST</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>GST @ 18%:</span>
+              <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-warning)' }}>{formatCurrency(gstAmount)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '16px', borderTop: '2px solid var(--gray-200)', alignItems: 'center' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gray-900)' }}>Total Payable:</span>
+              <span style={{ fontSize: '32px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--axis-primary)' }}>{formatCurrency(totalCost)}</span>
+            </div>
+            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '10px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-warning)' }}>💡 All prices exclude GST. Final invoice will include 18% GST</p>
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons - Right Aligned */}
-        <div className="flex items-center justify-end gap-3 pt-4">
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button
             type="button"
             onClick={onCancel || (() => router.back())}
             disabled={isLoading}
-            className="h-11 px-8 rounded-lg border-2 border-slate-300 text-slate-700 font-semibold text-base hover:bg-slate-50 hover:border-slate-400 transition-colors disabled:opacity-50"
+            className="btn btn-secondary"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="h-11 px-8 rounded-lg bg-[#003c71] text-white font-semibold text-base shadow-lg shadow-[#003c71]/25 hover:bg-[#002a52] transition-colors disabled:opacity-50"
+            className="btn btn-primary"
           >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Creating...
-              </span>
-            ) : (
-              "Create Project"
-            )}
+            {isLoading ? <><LoaderIcon /> Creating...</> : "Create Project"}
           </button>
         </div>
       </form>

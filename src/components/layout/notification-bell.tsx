@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, CheckCheck, X } from "lucide-react"
 import { getPusherClient, CHANNELS, EVENTS } from "@/lib/pusher"
 import { formatDate } from "@/utils/formatters"
 
@@ -14,13 +13,6 @@ interface Notification {
   read: boolean
   link: string | null
   createdAt: string
-}
-
-const typeIcons: Record<string, string> = {
-  approval: "✅",
-  rejection: "❌",
-  dispatch: "🚚",
-  approval_request: "🔔",
 }
 
 export function NotificationBell() {
@@ -74,16 +66,11 @@ export function NotificationBell() {
 
   // Real-time updates via Pusher
   useEffect(() => {
-    console.log("[NotificationBell] Setting up Pusher...")
     const client = getPusherClient()
-    console.log("[NotificationBell] Pusher client:", client)
-
     const channel = client.subscribe(CHANNELS.NOTIFICATIONS)
-    console.log("[NotificationBell] Subscribed to channel:", CHANNELS.NOTIFICATIONS)
 
     // Create stable wrapper that calls the ref (always fresh)
-    const handleNewNotification = (data: unknown) => {
-      console.log("[NotificationBell] Received NOTIFICATION_CREATED event! Data:", data)
+    const handleNewNotification = () => {
       fetchNotificationsRef.current()
     }
     const handleDelete = (data: { userId: string; notificationId?: string; allDeleted?: boolean; projectDeleted?: boolean }) => {
@@ -92,10 +79,8 @@ export function NotificationBell() {
 
     channel.bind(EVENTS.NOTIFICATION_CREATED, handleNewNotification)
     channel.bind(EVENTS.NOTIFICATION_DELETED, handleDelete)
-    console.log("[NotificationBell] Bound to events:", EVENTS.NOTIFICATION_CREATED, EVENTS.NOTIFICATION_DELETED)
 
     return () => {
-      console.log("[NotificationBell] Cleaning up Pusher...")
       channel.unbind(EVENTS.NOTIFICATION_CREATED, handleNewNotification)
       channel.unbind(EVENTS.NOTIFICATION_DELETED, handleDelete)
       client.unsubscribe(CHANNELS.NOTIFICATIONS)
@@ -131,60 +116,240 @@ export function NotificationBell() {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div style={{ position: "relative" }} ref={ref}>
+      {/* Bell Icon Button */}
       <button
         onClick={() => setOpen(!open)}
-        className="relative h-9 w-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+        style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "10px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          cursor: "pointer",
+          color: "#64748b",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#f8fafc"
+          e.currentTarget.style.borderColor = "#cbd5e1"
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#fff"
+          e.currentTarget.style.borderColor = "#e2e8f0"
+        }}
       >
-        <Bell className="h-4 w-4 text-slate-500" />
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {/* Notification Badge */}
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 rounded-full ring-2 ring-white flex items-center justify-center">
-            <span className="text-[10px] font-bold text-white px-0.5">{unreadCount > 9 ? "9+" : unreadCount}</span>
-          </span>
+          <span
+            style={{
+              position: "absolute",
+              top: "6px",
+              right: "6px",
+              width: "8px",
+              height: "8px",
+              background: "#ef4444",
+              borderRadius: "50%",
+              border: "2px solid #fff",
+            }}
+          />
         )}
       </button>
 
+      {/* Notification Dropdown Panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: "0",
+            width: "360px",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+            border: "1px solid #e2e8f0",
+            zIndex: 1000,
+            overflow: "hidden",
+          }}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-900 text-sm">Notifications</h3>
-            <div className="flex items-center gap-2">
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "#0f172a",
+                margin: 0,
+              }}
+            >
+              Notifications
+            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               {notifications.length > 0 && (
-                <button onClick={deleteAllNotifications} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-                  <CheckCheck className="h-3.5 w-3.5" /> Clear all
+                <button
+                  onClick={deleteAllNotifications}
+                  style={{
+                    fontSize: "13px",
+                    color: "#dc2626",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 500,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.textDecoration = "underline"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.textDecoration = "none"
+                  }}
+                >
+                  Clear all
                 </button>
               )}
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="h-4 w-4" />
+              <button
+                onClick={() => setOpen(false)}
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#64748b",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f1f5f9"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent"
+                }}
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
 
-          {/* List */}
-          <div className="max-h-80 overflow-y-auto">
+          {/* Notification List */}
+          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
             {notifications.length === 0 ? (
-              <div className="py-10 text-center">
-                <Bell className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">No notifications yet</p>
+              <div
+                style={{
+                  padding: "40px 20px",
+                  textAlign: "center",
+                }}
+              >
+                <svg
+                  width="48"
+                  height="48"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  style={{
+                    color: "#cbd5e1",
+                    margin: "0 auto 12px",
+                  }}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <p style={{ fontSize: "14px", color: "#94a3b8", margin: 0 }}>
+                  No notifications yet
+                </p>
               </div>
             ) : (
               notifications.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => handleClick(n)}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3 ${!n.read ? "bg-blue-50/50" : ""}`}
+                  style={{
+                    width: "100%",
+                    padding: "14px 20px",
+                    border: "none",
+                    borderBottom: "1px solid #f1f5f9",
+                    background: n.read ? "#fff" : "#eff6ff",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = n.read ? "#f8fafc" : "#dbeafe"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = n.read ? "#fff" : "#eff6ff"
+                  }}
                 >
-                  <span className="text-lg shrink-0 mt-0.5">{typeIcons[n.type] || "📌"}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className={`text-sm font-semibold truncate ${!n.read ? "text-slate-900" : "text-slate-600"}`}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: n.read ? 400 : 500,
+                          color: n.read ? "#475569" : "#0f172a",
+                          margin: "0 0 4px 0",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {n.title}
                       </p>
-                      {!n.read && <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />}
+                      {!n.read && (
+                        <span
+                          style={{
+                            width: "8px",
+                            height: "8px",
+                            background: "#3b82f6",
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                    <p className="text-xs text-slate-400 mt-1">{formatDate(new Date(n.createdAt))}</p>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#64748b",
+                        margin: "0 0 4px 0",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                      }}
+                    >
+                      {n.message}
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#94a3b8", margin: 0 }}>
+                      {formatDate(new Date(n.createdAt))}
+                    </p>
                   </div>
                 </button>
               ))

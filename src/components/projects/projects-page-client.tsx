@@ -1,23 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { formatDate, formatCurrency } from "@/utils/formatters"
 import Link from "next/link"
-import { ProjectsFilters } from "@/components/projects/projects-filters"
-import { ProjectsActions } from "@/components/projects/projects-actions"
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
-import { openNewProjectModal } from "@/components/projects/new-project-modal"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { openNewProjectModal } from "@/components/projects/new-project-modal"
+import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 const PAGE_SIZE = 20
-
-const statusVariants: Record<string, string> = {
-  REQUESTED: "requested", APPROVED: "approved", PRINTING: "printing",
-  DISPATCHED: "dispatched", DELIVERED: "delivered", CANCELLED: "rejected",
-}
 
 interface POC {
   id: string
@@ -30,21 +21,59 @@ interface Project {
   name: string
   status: string
   location: string
+  state?: string
   deliveryDate: string
   totalCost: number
   poc?: { id: string; name: string }
   collaterals?: { itemName: string; quantity: number }[]
 }
 
-// Global event for project created
-const PROJECT_CREATED_EVENT = "project-created"
+// SVG Icons
+const PlusIcon = () => (
+  <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+  </svg>
+)
 
-// Global event for project deleted
+const ViewIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+)
+
+const EditIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+)
+
+const DeleteIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
+const ChevronLeftIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+  </svg>
+)
+
+const ChevronRightIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+  </svg>
+)
+
+// Global events
+const PROJECT_CREATED_EVENT = "project-created"
 const PROJECT_DELETED_EVENT = "project-deleted"
 
 export function ProjectsPageClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(true)
   const [projects, setProjects] = useState<Project[]>([])
   const [total, setTotal] = useState(0)
@@ -53,11 +82,17 @@ export function ProjectsPageClient() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+
+  const isAdmin = session?.user?.role === "ADMIN"
+
   const params = {
-    status: searchParams.get("status") || undefined,
-    poc: searchParams.get("poc") || undefined,
-    location: searchParams.get("location") || undefined,
-    search: searchParams.get("search") || undefined,
+    status: searchParams.get("status") || "",
+    poc: searchParams.get("poc") || "",
+    location: searchParams.get("location") || "",
+    search: searchParams.get("search") || "",
     page: searchParams.get("page") || "1",
   }
 
@@ -65,9 +100,9 @@ export function ProjectsPageClient() {
     setIsLoading(true)
     try {
       const queryParams = new URLSearchParams()
-      if (params.status && params.status !== "all") queryParams.set("status", params.status)
-      if (params.poc && params.poc !== "all") queryParams.set("poc", params.poc)
-      if (params.location && params.location !== "all") queryParams.set("location", params.location)
+      if (params.status) queryParams.set("status", params.status)
+      if (params.poc) queryParams.set("poc", params.poc)
+      if (params.location) queryParams.set("location", params.location)
       if (params.search) queryParams.set("search", params.search)
       queryParams.set("page", params.page || "1")
 
@@ -76,8 +111,8 @@ export function ProjectsPageClient() {
         const data = await res.json()
         setProjects(data.projects)
         setTotal(data.total)
-        setPocs(data.pocs)
-        setLocations(data.locations)
+        setPocs(data.pocs || [])
+        setLocations(data.locations || [])
         setPage(data.page)
         setTotalPages(data.totalPages)
       }
@@ -92,7 +127,6 @@ export function ProjectsPageClient() {
     const timeout = window.setTimeout(() => {
       void fetchData()
     }, 0)
-
     return () => window.clearTimeout(timeout)
   }, [fetchData])
 
@@ -124,129 +158,231 @@ export function ProjectsPageClient() {
     }
   }, [handleProjectCreated, handleProjectDeleted])
 
+  const handleDelete = async (projectId: string) => {
+    if (!confirm("Are you sure you want to delete this project?")) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" })
+      if (res.ok) {
+        window.dispatchEvent(new Event(PROJECT_DELETED_EVENT))
+      }
+    } catch {
+      alert("Failed to delete project")
+    }
+  }
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">All Projects</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{total} project{total !== 1 ? "s" : ""} total</p>
-        </div>
-        <button
-          onClick={openNewProjectModal}
-          className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#003c71] hover:bg-[#002a52] text-white text-sm font-medium transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4" /> New Project
-        </button>
+    <div>
+      {/* Page Header */}
+      <div className="page-header">
+        <h1 className="page-title">All Projects</h1>
+        <p className="page-subtitle">Complete project list with advanced filtering</p>
       </div>
 
-      <ProjectsFilters pocs={pocs} locations={locations} currentParams={params} />
+      {/* Filters */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid var(--gray-200)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          <select
+            className="form-select"
+            style={{ width: '200px' }}
+            value={params.poc}
+            onChange={(e) => router.push(buildUrl({ poc: e.target.value }))}
+          >
+            <option value="">All POCs</option>
+            {pocs.map((poc) => (
+              <option key={poc.id} value={poc.id}>{poc.name}</option>
+            ))}
+          </select>
+          <select
+            className="form-select"
+            style={{ width: '200px' }}
+            value={params.status}
+            onChange={(e) => router.push(buildUrl({ status: e.target.value }))}
+          >
+            <option value="">All Status</option>
+            <option value="REQUESTED">Requested</option>
+            <option value="APPROVED">Approved</option>
+            <option value="PRINTING">Printing</option>
+            <option value="DISPATCHED">Dispatched</option>
+            <option value="DELIVERED">Delivered</option>
+          </select>
+          <select
+            className="form-select"
+            style={{ width: '200px' }}
+            value={params.location}
+            onChange={(e) => router.push(buildUrl({ location: e.target.value }))}
+          >
+            <option value="">All Locations</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+          <button className="btn btn-primary" onClick={openNewProjectModal} style={{ marginLeft: 'auto' }}>
+            <PlusIcon />
+            New Project
+          </button>
+        </div>
+      </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="py-20 text-center text-slate-400">
-              <div className="animate-spin h-8 w-8 border-2 border-[#003c71] border-t-transparent rounded-full mx-auto" />
-              <p className="mt-3 text-sm">Loading projects...</p>
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/80 hover:bg-slate-50">
-                    {["Project ID", "Name", "POC", "Location", "Materials", "Qty", "Status", "Delivery Date", "Total Cost", "Actions"].map((h) => (
-                      <TableHead key={h} className="font-semibold text-slate-500 uppercase text-xs tracking-wider">{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+      {/* Projects Table */}
+      <div className="card">
+        {isLoading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--gray-500)' }}>
+            <div className="animate-spin" style={{ width: '32px', height: '32px', border: '2px solid var(--axis-primary)', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 16px' }} />
+            <p>Loading projects...</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Project ID</th>
+                    <th>Name</th>
+                    <th>POC</th>
+                    <th>Location</th>
+                    <th>Material</th>
+                    <th>Qty</th>
+                    <th>Status</th>
+                    <th>Delivery Date</th>
+                    <th>Cost</th>
+                    <th style={{ width: '140px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {projects.map((project) => (
-                    <TableRow key={project.id} className="hover:bg-slate-50/50">
-                      <TableCell>
-                        <Link href={`/projects/${project.id}`} className="font-mono font-bold text-[#003c71] hover:underline text-sm">
-                          {project.projectId}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/projects/${project.id}`} className="font-semibold text-slate-800 hover:text-[#003c71] hover:underline">
-                          {project.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-slate-600">{project.poc?.name || "—"}</TableCell>
-                      <TableCell className="text-slate-600">{project.location}</TableCell>
-                      <TableCell className="max-w-[140px] truncate text-slate-600 text-sm">
-                        {project.collaterals?.map((c) => c.itemName).join(", ") || "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-slate-700">
+                    <tr key={project.id}>
+                      <td className="project-id" onClick={() => router.push(`/projects/${project.id}`)} style={{ cursor: 'pointer' }}>
+                        {project.projectId}
+                      </td>
+                      <td onClick={() => router.push(`/projects/${project.id}`)} style={{ cursor: 'pointer' }}>
+                        <strong>{project.name}</strong>
+                      </td>
+                      <td>{project.poc?.name || "—"}</td>
+                      <td>{project.location}{project.state ? `, ${project.state}` : ''}</td>
+                      <td>{project.collaterals?.map((c) => c.itemName).join(", ") || "—"}</td>
+                      <td className="font-mono">
                         {project.collaterals?.reduce((s, c) => s + c.quantity, 0).toLocaleString("en-IN")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariants[project.status] as Parameters<typeof Badge>[0]["variant"]}>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                            {project.status}
-                          </span>
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-sm">{formatDate(project.deliveryDate)}</TableCell>
-                      <TableCell className="font-mono font-semibold text-slate-800">{formatCurrency(project.totalCost)}</TableCell>
-                      <TableCell>
-                        <ProjectsActions projectId={project.id} />
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                      <td><StatusBadge status={project.status} /></td>
+                      <td>{new Date(project.deliveryDate).toLocaleDateString('en-IN')}</td>
+                      <td className="font-mono">₹{project.totalCost.toLocaleString('en-IN')}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <Link href={`/projects/${project.id}`}>
+                            <button className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '12px' }} title="View">
+                              <ViewIcon />
+                            </button>
+                          </Link>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '12px' }}
+                            title="Edit"
+                            onClick={() => {
+                              setEditingProject(project)
+                              setEditDialogOpen(true)
+                            }}
+                          >
+                            <EditIcon />
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '12px', color: 'var(--color-error)' }}
+                            title="Delete"
+                            onClick={() => handleDelete(project.id)}
+                          >
+                            <DeleteIcon />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
                   {projects.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-16 text-slate-400">
-                        <p className="font-medium text-base">No projects found</p>
-                        <p className="text-sm mt-1">Try adjusting your filters or create a new project</p>
-                      </TableCell>
-                    </TableRow>
+                    <tr>
+                      <td colSpan={10} style={{ textAlign: 'center', padding: '60px', color: 'var(--gray-500)' }}>
+                        <h3>No projects found</h3>
+                        <p>Try adjusting your filters or create a new project</p>
+                      </td>
+                    </tr>
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
+            </div>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-                  <p className="text-sm text-slate-500">
-                    Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    {page > 1 ? (
-                      <Link href={buildUrl({ page: String(page - 1) })} className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                        <ChevronLeft className="h-4 w-4 text-slate-600" />
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderTop: '1px solid var(--gray-200)' }}>
+                <p style={{ fontSize: '14px', color: 'var(--gray-600)' }}>
+                  Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {page > 1 ? (
+                    <Link href={buildUrl({ page: String(page - 1) })} className="btn btn-secondary" style={{ padding: '6px 10px' }}>
+                      <ChevronLeftIcon />
+                    </Link>
+                  ) : (
+                    <button className="btn btn-secondary" style={{ padding: '6px 10px', opacity: 0.4 }} disabled>
+                      <ChevronLeftIcon />
+                    </button>
+                  )}
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    const p = i + 1
+                    return (
+                      <Link
+                        key={p}
+                        href={buildUrl({ page: String(p) })}
+                        className={`btn ${p === page ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '6px 12px', minWidth: '36px' }}
+                      >
+                        {p}
                       </Link>
-                    ) : (
-                      <span className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-100 opacity-40 cursor-not-allowed">
-                        <ChevronLeft className="h-4 w-4 text-slate-400" />
-                      </span>
-                    )}
-                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                      const p = i + 1
-                      return (
-                        <Link key={p} href={buildUrl({ page: String(p) })}
-                          className={`h-8 w-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${p === page ? "bg-[#003c71] text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-                          {p}
-                        </Link>
-                      )
-                    })}
-                    {page < totalPages ? (
-                      <Link href={buildUrl({ page: String(page + 1) })} className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-                        <ChevronRight className="h-4 w-4 text-slate-600" />
-                      </Link>
-                    ) : (
-                      <span className="h-8 w-8 flex items-center justify-center rounded-lg border border-slate-100 opacity-40 cursor-not-allowed">
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
-                      </span>
-                    )}
-                  </div>
+                    )
+                  })}
+                  {page < totalPages ? (
+                    <Link href={buildUrl({ page: String(page + 1) })} className="btn btn-secondary" style={{ padding: '6px 10px' }}>
+                      <ChevronRightIcon />
+                    </Link>
+                  ) : (
+                    <button className="btn btn-secondary" style={{ padding: '6px 10px', opacity: 0.4 }} disabled>
+                      <ChevronRightIcon />
+                    </button>
+                  )}
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
+      {/* Edit Project Dialog */}
+      {editingProject && (
+        <EditProjectDialog
+          project={{
+            id: editingProject.id,
+            name: editingProject.name,
+            pocId: editingProject.poc?.id || '',
+            location: editingProject.location,
+            state: editingProject.state || '',
+            deliveryDate: editingProject.deliveryDate,
+            status: editingProject.status,
+            material: editingProject.collaterals?.[0]?.itemName || '',
+            quantity: editingProject.collaterals?.[0]?.quantity || 0,
+            collaterals: editingProject.collaterals?.map((c, i) => ({
+              id: String(i),
+              itemName: c.itemName,
+              quantity: c.quantity,
+              unitPrice: 0,
+              totalPrice: 0,
+            })),
+          }}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          isAdmin={isAdmin}
+          onSuccess={() => {
+            fetchData()
+            setEditingProject(null)
+          }}
+        />
+      )}
     </div>
   )
 }

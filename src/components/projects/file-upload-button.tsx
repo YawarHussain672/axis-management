@@ -1,8 +1,38 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Upload, Loader2, FileText, Download, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+
+// SVG Icons
+const UploadIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+  </svg>
+)
+
+const FileIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+)
+
+const DownloadIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
+const LoaderIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" className="animate-spin">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
 
 interface FileUploadButtonProps {
   projectId: string
@@ -85,28 +115,36 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
   }
 
   return (
-    <div className="border border-slate-200 rounded-xl p-4 bg-white hover:border-blue-200 transition-colors">
+    <div className="doc-section" style={{ background: 'var(--gray-50)', padding: '16px', borderRadius: '10px', marginBottom: '16px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-            <FileText className="h-4 w-4 text-blue-600" />
-          </div>
-          <p className="font-semibold text-sm text-slate-800">{label}</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <h4 style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{label}</h4>
         {isAdmin && (
           <>
             <button
               onClick={() => inputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#003c71] hover:bg-[#002a52] text-white text-xs font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="doc-upload-btn"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                background: 'var(--axis-primary)',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: 700,
+                border: 'none',
+                cursor: 'pointer',
+                opacity: uploading ? 0.6 : 1,
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => { if (!uploading) e.currentTarget.style.background = '#002a52' }}
+              onMouseLeave={(e) => { if (!uploading) e.currentTarget.style.background = 'var(--axis-primary)' }}
             >
-              {uploading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              {uploading ? "Uploading..." : "Upload"}
+              {uploading ? <LoaderIcon /> : <UploadIcon />}
+              {uploading ? "Uploading..." : `Upload ${fileType}`}
             </button>
             <input
               ref={inputRef}
@@ -121,30 +159,63 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
 
       {/* Progress bar */}
       {uploading && (
-        <div className="mb-3">
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ height: '6px', background: 'var(--gray-200)', borderRadius: '3px', overflow: 'hidden' }}>
             <div
-              className="h-full bg-blue-500 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
+              style={{
+                height: '100%',
+                background: 'var(--axis-primary)',
+                borderRadius: '3px',
+                transition: 'width 0.3s',
+                width: `${progress}%`
+              }}
             />
           </div>
-          <p className="text-xs text-slate-400 mt-1">{progress}% uploaded</p>
+          <p style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>{progress}% uploaded</p>
         </div>
       )}
-      {existingFiles.length === 0 && <p className="text-xs text-gray-400 italic">No files uploaded</p>}
-
 
       {/* Existing files */}
       {existingFiles.length > 0 ? (
-        <div className="space-y-2">
+        <div>
           {existingFiles.map((f) => (
             <div
               key={f.id}
-              className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-100"
+              className="doc-item"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px',
+                background: 'var(--gray-0)',
+                borderRadius: '6px',
+                border: '1px solid var(--gray-200)',
+                marginTop: '8px'
+              }}
             >
-              <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="text-xs text-emerald-800 font-medium truncate flex-1">{f.filename}</span>
-              <div className="flex items-center gap-1">
+              <div className="doc-info" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="doc-icon" style={{
+                  width: '36px',
+                  height: '36px',
+                  background: 'var(--axis-primary)',
+                  color: 'white',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '12px'
+                }}>
+                  PDF
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{f.filename}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
+                    Uploaded: {new Date(f.uploadedAt || '').toLocaleDateString()} • {f.size ? `${(f.size / 1024).toFixed(0)} KB` : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="doc-actions" style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={async () => {
                     try {
@@ -155,7 +226,6 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                       const blob = await res.blob()
                       const url = window.URL.createObjectURL(blob)
 
-                      // Create anchor and force download
                       const a = document.createElement("a")
                       a.href = url
                       a.download = f.filename
@@ -163,7 +233,6 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                       document.body.appendChild(a)
                       a.click()
 
-                      // Cleanup
                       setTimeout(() => {
                         window.URL.revokeObjectURL(url)
                         document.body.removeChild(a)
@@ -174,10 +243,11 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                       toast.error(err instanceof Error ? err.message : "Download failed", { id: `download-${f.id}` })
                     }
                   }}
-                  className="p-1.5 rounded hover:bg-emerald-200 transition-colors inline-flex"
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
                   title="Download file"
                 >
-                  <Download className="h-3.5 w-3.5 text-emerald-700" />
+                  <DownloadIcon />
                 </button>
                 {isAdmin && (
                   <button
@@ -191,7 +261,6 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                           throw new Error(data.error || "Delete failed")
                         }
                         toast.success("File deleted")
-                        // Force page refresh to get updated file list from server
                         window.location.reload()
                       } catch (err) {
                         toast.error(err instanceof Error ? err.message : "Failed to delete file")
@@ -200,31 +269,21 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                       }
                     }}
                     disabled={deleting === f.id}
-                    className="p-1.5 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: '12px', color: 'var(--color-error)' }}
                     title="Delete"
                   >
-                    {deleting === f.id ? (
-                      <Loader2 className="h-3.5 w-3.5 text-red-600 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                    )}
+                    {deleting === f.id ? <LoaderIcon /> : <TrashIcon />}
                   </button>
                 )}
               </div>
             </div>
           ))}
         </div>
-      ) : isAdmin ? (
-        <div
-          onClick={() => inputRef.current?.click()}
-          className="border-2 border-dashed border-slate-200 rounded-lg p-4 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all"
-        >
-          <Upload className="h-5 w-5 text-slate-300 mx-auto mb-1" />
-          <p className="text-xs text-slate-400">Click to upload or drag & drop</p>
-          <p className="text-xs text-slate-300 mt-0.5">PDF, Image, Excel · Max 10MB</p>
-        </div>
       ) : (
-        <p className="text-xs text-gray-400 italic">Document not uploaded yet</p>
+        <p style={{ color: 'var(--gray-500)', fontSize: '13px' }}>
+          No documents uploaded
+        </p>
       )}
     </div>
   )

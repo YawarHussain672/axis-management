@@ -1,30 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { redirect } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/utils/formatters"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
-import {
-  BarChart3,
-  TrendingUp,
-  MapPin,
-  Package,
-  IndianRupee,
-  FolderKanban,
-  CheckCircle,
-  Clock,
-  Building2,
-  Download,
-  ChevronDown,
-} from "lucide-react"
-import { SpendByLocationChart } from "@/components/analytics/spend-by-location-chart"
-import { StatusBreakdownChart } from "@/components/analytics/status-breakdown-chart"
-import { MonthlyTrendChart } from "@/components/analytics/monthly-trend-chart"
-import { TopCollateralsChart } from "@/components/analytics/top-collaterals-chart"
 
 interface StatusSummary {
   status: string
@@ -36,18 +17,6 @@ interface LocationSummary {
   location: string
   _count: { id: number }
   _sum: { totalCost: number }
-}
-
-interface CollateralSummary {
-  itemName: string
-  _count: { id: number }
-  _sum: { totalPrice: number; quantity: number }
-}
-
-interface MonthlyProjectSummary {
-  month: string
-  count: number
-  spend: number
 }
 
 interface BranchPerformance {
@@ -66,8 +35,6 @@ interface AnalyticsData {
   deliveryRate: number
   projectsByStatus: StatusSummary[]
   projectsByLocation: LocationSummary[]
-  collateralStats: CollateralSummary[]
-  monthlyProjects: MonthlyProjectSummary[]
   branchData: BranchPerformance[]
   totalLeadsGenerated: number
   totalLeadsConverted: number
@@ -76,11 +43,8 @@ interface AnalyticsData {
   avgCPA: number
 }
 
-type AutoTableJsPDF = jsPDF & {
-  lastAutoTable: { finalY: number }
-}
-
 export default function AnalyticsPage() {
+  const router = useRouter()
   const { data: session, status } = useSession()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -96,7 +60,6 @@ export default function AnalyticsPage() {
         setData(analyticsData)
       }
     } catch {
-      // Silently handle network errors - component will show loading state
       console.log("Analytics fetch retry pending...")
     } finally {
       setLoading(false)
@@ -111,62 +74,98 @@ export default function AnalyticsPage() {
     return () => window.clearTimeout(timeout)
   }, [fetchAnalyticsData])
 
-  if (status === "unauthenticated") redirect("/login")
-  if (status === "authenticated" && session.user.role !== "ADMIN") redirect("/dashboard")
+  if (status === "unauthenticated") {
+    router.push("/login")
+    return null
+  }
+  if (status === "authenticated" && session.user.role !== "ADMIN") {
+    router.push("/dashboard")
+    return null
+  }
 
-  const filteredBranchData = data?.branchData.filter((branch) => {
-    const leads = branch.leads_generated || 0
-    const conversions = branch.conversions || 0
-    const conversionRate = leads > 0 ? (conversions / leads) * 100 : 0
+  const exportReport = () => {
+    if (!data) return
+    const doc = new jsPDF()
+    const date = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    const pageW = doc.internal.pageSize.getWidth()
 
-    switch (branchFilter) {
-      case "top":
-        return branch.campaigns > 0 && conversionRate >= 10
-      case "attention":
-        return branch.campaigns > 0 && (conversionRate < 10 || leads === 0)
-      default:
-        return true
-    }
-  }) ?? []
+    // Header
+    doc.setFillColor(0, 60, 113)
+    doc.rect(0, 0, pageW, 24, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(13)
+    doc.setFont("helvetica", "bold")
+    doc.text("AXIS MAX LIFE", 14, 11)
+    doc.setFontSize(8)
+    doc.setFont("helvetica", "normal")
+    doc.text("Marketing ROI Dashboard", 14, 16)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("Analytics Report", pageW / 2, 13, { align: "center" })
+    doc.setFontSize(8)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Generated: ${date}`, pageW - 14, 11, { align: "right" })
+
+    // Marketing ROI Summary Table
+    const summaryData = [
+      ["Marketing Spend", `Rs. ${data.totalSpend.toLocaleString("en-US")}`],
+      ["Leads Generated", data.totalLeadsGenerated.toLocaleString("en-US")],
+      ["Conversions", data.totalLeadsConverted.toLocaleString("en-US")],
+      ["Conversion Rate", `${data.conversionRate.toFixed(1)}%`],
+      ["Cost Per Lead (CPL)", `Rs. ${data.avgCPL.toLocaleString("en-US")}`],
+      ["Cost Per Acquisition (CPA)", `Rs. ${data.avgCPA.toLocaleString("en-US")}`],
+      ["Total Projects", data.totalProjects.toString()],
+      ["Delivered Projects", data.deliveredProjects.toString()],
+      ["Delivery Rate", `${data.deliveryRate.toFixed(1)}%`],
+    ]
+
+    autoTable(doc, {
+      head: [["Metric", "Value"]],
+      body: summaryData,
+      startY: 30,
+      styles: { fontSize: 10, cellPadding: 4 },
+      headStyles: { fillColor: [0, 60, 113], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { fontStyle: "bold" },
+        1: { halign: "right" },
+      },
+    })
+
+    doc.save(`analytics-report-${new Date().toISOString().split("T")[0]}.pdf`)
+  }
 
   const exportBranchData = () => {
     if (!data?.branchData) return
-
     const doc = new jsPDF()
-    const date = new Date().toLocaleDateString("en-IN")
-
-    // Title
     doc.setFontSize(18)
-    doc.text("Branch-Level Performance Report", 14, 20)
-    doc.setFontSize(10)
-    doc.text(`Generated: ${date}`, 14, 28)
+    doc.setTextColor(0, 60, 113)
+    doc.text("Branch-Level Performance", 14, 20)
 
-    // Table data
-    const tableData = data.branchData.map((branch) => {
-      const leads = Number(branch.leads_generated) || 0
-      const conversions = Number(branch.conversions) || 0
-      const campaigns = Number(branch.campaigns) || 0
-      const spend = branch.marketing_spend || 0
+    const tableData = data.branchData.map((b) => {
+      const leads = Number(b.leads_generated) || 0
+      const conversions = Number(b.conversions) || 0
+      const spend = b.marketing_spend || 0
+      const cpl = leads > 0 ? Math.round(spend / leads) : 0
+      const cpa = conversions > 0 ? Math.round(spend / conversions) : 0
       const conversionRate = leads > 0 ? ((conversions / leads) * 100).toFixed(1) + "%" : "0.0%"
-      const cpl = leads > 0 ? "Rs. " + Math.round(spend / leads) : "Rs. 0"
-      const cpa = conversions > 0 ? "Rs. " + Math.round(spend / conversions) : "N/A"
 
       return [
-        branch.branch,
-        campaigns.toString(),
-        leads.toString(),
-        conversions.toString(),
+        b.branch,
+        b.campaigns.toString(),
+        leads.toLocaleString("en-US"),
+        conversions.toLocaleString("en-US"),
         conversionRate,
-        "Rs. " + Math.round(spend).toLocaleString(),
-        cpl,
-        cpa
+        "Rs. " + spend.toLocaleString("en-US"),
+        cpl > 0 ? "Rs. " + cpl.toLocaleString("en-US") : "Rs. 0",
+        cpa > 0 ? "Rs. " + cpa.toLocaleString("en-US") : "N/A"
       ]
     })
 
     autoTable(doc, {
-      head: [["Branch", "Campaigns", "Leads", "Conversions", "Conv. Rate", "Spend", "CPL", "CPA"]],
+      head: [["Branch Location", "Campaigns", "Leads Generated", "Conversions", "Conversion Rate", "Marketing Spend", "CPL", "CPA"]],
       body: tableData,
-      startY: 35,
+      startY: 30,
       styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: [0, 60, 113], textColor: 255 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -175,430 +174,329 @@ export default function AnalyticsPage() {
     doc.save(`branch-performance-${new Date().toISOString().split("T")[0]}.pdf`)
   }
 
-  const exportFullReport = () => {
-    if (!data) return
-
-    const doc = new jsPDF()
-    const reportDate = new Date().toLocaleDateString("en-IN")
-
-    // Title
-    doc.setFontSize(20)
-    doc.setTextColor(0, 60, 113)
-    doc.text("Axis Max Life - Analytics Report", 14, 20)
-    doc.setFontSize(10)
-    doc.setTextColor(100, 100, 100)
-    doc.text(`Generated: ${reportDate}`, 14, 28)
-
-    let currentY = 35
-
-    // Overview Metrics Table
-    doc.setFontSize(14)
-    doc.setTextColor(0, 60, 113)
-    doc.text("Overview Metrics", 14, currentY)
-    currentY += 8
-
-    const overviewData = [
-      ["Total Projects", data.totalProjects.toString()],
-      ["Total Spend", `Rs. ${data.totalSpend.toLocaleString()}`],
-      ["Total Leads Generated", data.totalLeadsGenerated.toString()],
-      ["Total Leads Converted", data.totalLeadsConverted.toString()],
-      ["Conversion Rate", `${data.conversionRate.toFixed(1)}%`],
-      ["Avg Cost Per Lead", `Rs. ${data.avgCPL}`],
-      ["Avg Cost Per Acquisition", `Rs. ${data.avgCPA}`],
-    ]
-
-    autoTable(doc, {
-      body: overviewData,
-      startY: currentY,
-      styles: { fontSize: 10, cellPadding: 3 },
-      columnStyles: { 0: { fontStyle: "bold" } },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    })
-
-    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
-
-    // Monthly Trends Table
-    if (currentY > 250) { doc.addPage(); currentY = 20 }
-    doc.setFontSize(14)
-    doc.setTextColor(0, 60, 113)
-    doc.text("Monthly Trends", 14, currentY)
-    currentY += 8
-
-    const monthlyData = data.monthlyProjects.map((m: { month: string; count: number; spend: number }) => [
-      m.month,
-      m.count.toString(),
-      `Rs. ${m.spend.toLocaleString()}`,
-    ])
-
-    autoTable(doc, {
-      head: [["Month", "Projects", "Spend"]],
-      body: monthlyData,
-      startY: currentY,
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [0, 60, 113], textColor: 255 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    })
-
-    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
-
-    // Status Breakdown Table
-    if (currentY > 250) { doc.addPage(); currentY = 20 }
-    doc.setFontSize(14)
-    doc.setTextColor(0, 60, 113)
-    doc.text("Project Status Breakdown", 14, currentY)
-    currentY += 8
-
-    const statusData = data.projectsByStatus.map((s: { status: string; _count: { id: number }; _sum: { totalCost: number } }) => [
-      s.status,
-      s._count.id.toString(),
-      `Rs. ${(s._sum.totalCost || 0).toLocaleString()}`,
-    ])
-
-    autoTable(doc, {
-      head: [["Status", "Count", "Spend"]],
-      body: statusData,
-      startY: currentY,
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [0, 60, 113], textColor: 255 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    })
-
-    currentY = (doc as AutoTableJsPDF).lastAutoTable.finalY + 15
-
-    // Branch Performance Table
-    doc.addPage()
-    currentY = 20
-    doc.setFontSize(14)
-    doc.setTextColor(0, 60, 113)
-    doc.text("Branch-Level Performance", 14, currentY)
-    currentY += 8
-
-    const branchData = data.branchData.map((b) => {
-      const leads = Number(b.leads_generated) || 0
-      const conversions = Number(b.conversions) || 0
-      const campaigns = Number(b.campaigns) || 0
-      const spend = b.marketing_spend || 0
-      const conversionRate = leads > 0 ? ((conversions / leads) * 100).toFixed(1) + "%" : "0.0%"
-      const cpl = leads > 0 ? Math.round(spend / leads) : 0
-      const cpa = conversions > 0 ? Math.round(spend / conversions) : 0
-
-      return [
-        b.branch,
-        campaigns.toString(),
-        leads.toString(),
-        conversions.toString(),
-        conversionRate,
-        `Rs. ${Math.round(spend).toLocaleString()}`,
-        cpl ? `Rs. ${cpl}` : "Rs. 0",
-        cpa ? `Rs. ${cpa}` : "N/A",
-      ]
-    })
-
-    autoTable(doc, {
-      head: [["Branch", "Campaigns", "Leads", "Conversions", "Conv. Rate", "Spend", "CPL", "CPA"]],
-      body: branchData,
-      startY: currentY,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [0, 60, 113], textColor: 255 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    })
-
-    doc.save(`axis-max-life-analytics-report-${new Date().toISOString().split("T")[0]}.pdf`)
+  const getStatusBadgeClass = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "delivered": return "status-delivered"
+      case "dispatched": return "status-dispatched"
+      case "printing": return "status-printing"
+      case "approved": return "status-approved"
+      default: return "status-requested"
+    }
   }
 
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin h-8 w-8 border-4 border-[#003c71] border-t-transparent rounded-full" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "24rem" }}>
+        <div style={{ width: "2rem", height: "2rem", border: "4px solid #003c71", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       </div>
     )
   }
 
+  const filteredBranchData = data.branchData || []
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Analytics & Reports</h1>
-          <p className="text-gray-600 mt-1">Insights into print operations, spend, and performance</p>
+    <div>
+      {/* Page Header */}
+      <div className="page-header">
+        <h1 className="page-title">Analytics & Reports</h1>
+        <p className="page-subtitle">Comprehensive marketing performance and ROI analysis</p>
+      </div>
+
+      {/* Marketing ROI Dashboard */}
+      <div className="card" style={{ marginBottom: "32px", padding: "24px" }}>
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+          <div className="card-title" style={{ fontSize: "20px", fontWeight: 700, color: "#1f2937" }}>Marketing ROI Dashboard</div>
+          <button className="btn btn-primary" onClick={exportReport}>Export Report</button>
         </div>
-        <Button
-          onClick={exportFullReport}
-          className="gap-2 bg-[#003c71] hover:bg-[#002a52]"
-        >
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-1">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Projects</p>
-              <div className="p-2 rounded-lg bg-cyan-100 text-cyan-700"><FolderKanban className="h-5 w-5" /></div>
-            </div>
-            <p className="text-3xl font-extrabold text-gray-900">{data.totalProjects}</p>
-            <p className="text-sm text-gray-500 mt-1">All time</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-1">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Spend</p>
-              <div className="p-2 rounded-lg bg-green-100 text-green-700"><IndianRupee className="h-5 w-5" /></div>
-            </div>
-            <p className="text-3xl font-extrabold text-gray-900">{formatCurrency(data.totalSpend)}</p>
-            <p className="text-sm text-gray-500 mt-1">Across all projects</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-1">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Delivery Rate</p>
-              <div className="p-2 rounded-lg bg-green-100 text-green-700"><CheckCircle className="h-5 w-5" /></div>
-            </div>
-            <p className="text-3xl font-extrabold text-gray-900">{data.deliveryRate}%</p>
-            <p className="text-sm text-gray-500 mt-1">{data.deliveredProjects} delivered</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-lg transition-all hover:-translate-y-1">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">Avg Project Cost</p>
-              <div className="p-2 rounded-lg bg-amber-100 text-amber-700"><TrendingUp className="h-5 w-5" /></div>
-            </div>
-            <p className="text-3xl font-extrabold text-gray-900">{formatCurrency(data.avgProjectCost)}</p>
-            <p className="text-sm text-gray-500 mt-1">Per project</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Marketing ROI Cards */}
-      {data.totalLeadsGenerated > 0 && (
         <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-3">Marketing ROI</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-blue-100 bg-blue-50/50">
-              <CardContent className="p-6">
-                <p className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">Total Leads</p>
-                <p className="text-3xl font-extrabold text-blue-900">{data.totalLeadsGenerated.toLocaleString("en-IN")}</p>
-                <p className="text-sm text-blue-600 mt-1">Generated across campaigns</p>
-              </CardContent>
-            </Card>
-            <Card className="border-green-100 bg-green-50/50">
-              <CardContent className="p-6">
-                <p className="text-sm font-bold text-green-600 uppercase tracking-wider mb-2">Conversions</p>
-                <p className="text-3xl font-extrabold text-green-900">{data.totalLeadsConverted.toLocaleString("en-IN")}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-green-600">Conversion rate:</span>
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border ${data.conversionRate >= 15
-                    ? 'bg-green-500/20 text-green-700 border-green-500/30 shadow-sm shadow-green-500/10' :
-                    data.conversionRate >= 5
-                      ? 'bg-amber-500/20 text-amber-700 border-amber-500/30 shadow-sm shadow-amber-500/10' :
-                      'bg-red-500/20 text-red-700 border-red-500/30 shadow-sm shadow-red-500/10'
-                    } `}>
-                    <span className={`w-2 h-2 rounded-full ${data.conversionRate >= 15 ? 'bg-green-500' :
-                      data.conversionRate >= 5 ? 'bg-amber-500' : 'bg-red-500'
-                      } `} />
-                    {data.conversionRate.toFixed(1)}%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-amber-100 bg-amber-50/50">
-              <CardContent className="p-6">
-                <p className="text-sm font-bold text-amber-600 uppercase tracking-wider mb-2">Avg CPL</p>
-                <p className="text-3xl font-extrabold text-amber-900">{formatCurrency(data.avgCPL)}</p>
-                <p className="text-sm text-amber-600 mt-1">Cost per lead</p>
-              </CardContent>
-            </Card>
-            <Card className="border-purple-100 bg-purple-50/50">
-              <CardContent className="p-6">
-                <p className="text-sm font-bold text-purple-600 uppercase tracking-wider mb-2">Avg CPA</p>
-                <p className="text-3xl font-extrabold text-purple-900">{formatCurrency(data.avgCPA)}</p>
-                <p className="text-sm text-purple-600 mt-1">Cost per acquisition</p>
-              </CardContent>
-            </Card>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "16px" }}>
+            <div style={{
+              background: "rgba(14, 165, 233, 0.08)",
+              border: "2px solid rgba(14, 165, 233, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Marketing Spend</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#0ea5e9" }}>{formatCurrency(data.totalSpend)}</div>
+            </div>
+
+            <div style={{
+              background: "rgba(168, 85, 247, 0.08)",
+              border: "2px solid rgba(168, 85, 247, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Leads Generated</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#8b5cf6" }}>{data.totalLeadsGenerated.toLocaleString()}</div>
+            </div>
+
+            <div style={{
+              background: "rgba(34, 197, 94, 0.08)",
+              border: "2px solid rgba(34, 197, 94, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Conversions</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#22c55e" }}>{data.totalLeadsConverted.toLocaleString()}</div>
+            </div>
+
+            <div style={{
+              background: "rgba(234, 179, 8, 0.08)",
+              border: "2px solid rgba(234, 179, 8, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Cost Per Lead</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#eab308" }}>{formatCurrency(data.avgCPL)}</div>
+            </div>
+
+            <div style={{
+              background: "rgba(239, 68, 68, 0.08)",
+              border: "2px solid rgba(239, 68, 68, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Cost Per Acquisition</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#ef4444" }}>{formatCurrency(data.avgCPA)}</div>
+            </div>
+
+            <div style={{
+              background: "rgba(59, 130, 246, 0.08)",
+              border: "2px solid rgba(59, 130, 246, 0.25)",
+              borderRadius: "12px",
+              padding: "20px 12px",
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Conversion Rate</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#3b82f6" }}>{data.conversionRate.toFixed(1)}%</div>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-[#003c71]" />
-              Monthly Project Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyTrendChart
-              data={data.monthlyProjects.map((m: { month: string; count: number; spend: number }) => ({
-                month: m.month,
-                count: Number(m.count),
-                spend: Number(m.spend) || 0,
-              }))}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-[#003c71]" />
-              Project Status Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StatusBreakdownChart
-              data={data.projectsByStatus.map((s: { status: string; _count: { id: number }; _sum: { totalCost: number } }) => ({
-                status: s.status,
-                count: s._count.id,
-                spend: s._sum.totalCost || 0,
-              }))}
-            />
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-[#003c71]" />
-              Spend by Location
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SpendByLocationChart
-              data={data.projectsByLocation.map((l) => ({
-                location: l.location,
-                count: l._count.id,
-                spend: l._sum.totalCost || 0,
-              }))}
-            />
-          </CardContent>
-        </Card>
+      {/* Three Column Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", marginBottom: "24px" }}>
+        {/* Projected vs Actual Business */}
+        <div style={{ background: "white", borderRadius: "16px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1f2937", marginBottom: "20px" }}>Projected vs Actual Business</h3>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-[#003c71]" />
-              Top Collaterals by Spend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TopCollateralsChart
-              data={data.collateralStats.map((c) => ({
-                itemName: c.itemName,
-                count: c._count.id,
-                spend: c._sum.totalPrice || 0,
-                quantity: c._sum.quantity || 0,
-              }))}
-            />
-          </CardContent>
-        </Card>
+          {/* Modern Minimalist Pie Chart */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+            <div style={{ position: "relative", width: "140px", height: "140px" }}>
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                {/* Subtle background circle */}
+                <circle cx="70" cy="70" r="58" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                {/* Pipeline (light gray) */}
+                <circle
+                  cx="70"
+                  cy="70"
+                  r="58"
+                  fill="none"
+                  stroke="#e2e8f0"
+                  strokeWidth="12"
+                  strokeDasharray={`${((data.totalLeadsGenerated - data.totalLeadsConverted) / data.totalLeadsGenerated) * 364} 364`}
+                  transform="rotate(-90 70 70)"
+                />
+                {/* Converted (soft green) */}
+                <circle
+                  cx="70"
+                  cy="70"
+                  r="58"
+                  fill="none"
+                  stroke="#86efac"
+                  strokeWidth="12"
+                  strokeDasharray={`${(data.totalLeadsConverted / data.totalLeadsGenerated) * 364} 364`}
+                  strokeLinecap="round"
+                  transform={`rotate(${-90 + ((data.totalLeadsGenerated - data.totalLeadsConverted) / data.totalLeadsGenerated) * 360} 70 70)`}
+                />
+              </svg>
+              {/* Center label */}
+              <div style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                textAlign: "center"
+              }}>
+                <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 500, letterSpacing: "0.5px" }}>Total</div>
+                <div style={{ fontSize: "20px", fontWeight: 700, color: "#334155" }}>{data.totalLeadsGenerated}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Boxes */}
+          <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{
+              flex: 1,
+              textAlign: "center",
+              padding: "16px",
+              background: "#ecfdf5",
+              borderRadius: "12px",
+              border: "1px solid #a7f3d0"
+            }}>
+              <p style={{ fontSize: "12px", fontWeight: 600, color: "#059669", marginBottom: "4px" }}>Converted</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "#047857" }}>{data.totalLeadsConverted}</p>
+            </div>
+            <div style={{
+              flex: 1,
+              textAlign: "center",
+              padding: "16px",
+              background: "#f9fafb",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb"
+            }}>
+              <p style={{ fontSize: "12px", fontWeight: 600, color: "#4b5563", marginBottom: "4px" }}>Pipeline</p>
+              <p style={{ fontSize: "24px", fontWeight: 800, color: "#374151" }}>{data.totalLeadsGenerated - data.totalLeadsConverted}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Location Distribution */}
+        <div style={{ background: "white", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1f2937", marginBottom: "20px" }}>Location Distribution</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            {data.projectsByLocation.slice(0, 6).map((loc) => {
+              const maxCount = Math.max(...data.projectsByLocation.map(l => l._count.id), 1)
+              const percentage = Math.round((loc._count.id / maxCount) * 100)
+              return (
+                <div key={loc.location} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontWeight: 600, color: "#374151", width: "80px", fontSize: "14px" }}>{loc.location}</span>
+                  <div style={{ flex: 1, height: "10px", background: "#f3f4f6", borderRadius: "5px", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${percentage}%`,
+                        height: "100%",
+                        background: "linear-gradient(90deg, #003c71 0%, #0056a3 100%)",
+                        borderRadius: "5px",
+                        transition: "width 0.3s ease"
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontWeight: 700, color: "#1f2937", minWidth: "28px", fontSize: "14px", textAlign: "right" }}>
+                    {loc._count.id}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Status Breakdown */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title">Status Breakdown</div>
+          </div>
+          <div className="card-body">
+            {data.projectsByStatus.map((s) => {
+              const statusStyles: Record<string, { bg: string; border: string; text: string }> = {
+                delivered: { bg: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", text: "#16a34a" },
+                dispatched: { bg: "rgba(37, 99, 235, 0.15)", border: "1px solid rgba(37, 99, 235, 0.3)", text: "#2563eb" },
+                printing: { bg: "rgba(217, 119, 6, 0.15)", border: "1px solid rgba(217, 119, 6, 0.3)", text: "#d97706" },
+                approved: { bg: "rgba(124, 58, 237, 0.15)", border: "1px solid rgba(124, 58, 237, 0.3)", text: "#7c3aed" },
+                requested: { bg: "rgba(100, 116, 139, 0.15)", border: "1px solid rgba(100, 116, 139, 0.3)", text: "#64748b" },
+                cancelled: { bg: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.3)", text: "#dc2626" }
+              }
+              const style = statusStyles[s.status.toLowerCase()] || statusStyles.requested
+
+              return (
+                <div key={s.status} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: style.text,
+                      textTransform: "capitalize",
+                      background: style.bg,
+                      border: style.border,
+                      padding: "6px 12px",
+                      borderRadius: "9999px",
+                      fontSize: "13px"
+                    }}
+                  >
+                    {s.status}
+                  </span>
+                  <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "16px" }}>
+                    {s._count.id}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Branch-Level Performance Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-[#003c71]" />
-              Branch-Level Performance
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              {/* Filter Dropdown */}
-              <div className="relative">
-                <select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-10 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003c71] focus:border-transparent cursor-pointer"
-                >
-                  <option value="all">All Branches</option>
-                  <option value="top">Top Performer</option>
-                  <option value="attention">Need Attention</option>
-                </select>
-                <ChevronDown className="h-4 w-4 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {/* Export Button */}
-              <button
-                onClick={exportBranchData}
-                className="flex items-center gap-2 bg-[#003c71] hover:bg-[#002a52] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Download className="h-4 w-4" />
-                Export Data
-              </button>
-            </div>
+      <div className="card">
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="card-title">Branch-Level Performance</div>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              style={{ padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "14px" }}
+            >
+              <option value="all">All Branches</option>
+              <option value="top">Top Performer</option>
+              <option value="attention">Need Attention</option>
+            </select>
+            <button className="btn btn-secondary" onClick={exportBranchData}>Export Data</button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Branch Location</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Campaigns</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Leads Generated</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Conversions</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Conversion Rate</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">Marketing Spend</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">CPL</th>
-                  <th className="text-right px-4 py-3 font-bold text-gray-600 uppercase text-xs tracking-wider">CPA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredBranchData.map((branch) => {
-                  const leads = Number(branch.leads_generated) || 0
-                  const conversions = Number(branch.conversions) || 0
-                  const campaigns = Number(branch.campaigns) || 0
-                  const spend = branch.marketing_spend || 0
-                  const conversionRate = leads > 0 ? (conversions / leads) * 100 : 0
-                  const cpl = leads > 0 ? spend / leads : 0
-                  const cpa = conversions > 0 ? spend / conversions : 0
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          <table className="data-table" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th>Branch Location</th>
+                <th style={{ textAlign: "center" }}>Campaigns</th>
+                <th style={{ textAlign: "center" }}>Leads Generated</th>
+                <th style={{ textAlign: "center" }}>Conversions</th>
+                <th style={{ textAlign: "center" }}>Conversion Rate</th>
+                <th style={{ textAlign: "right" }}>Marketing Spend</th>
+                <th style={{ textAlign: "right" }}>CPL</th>
+                <th style={{ textAlign: "right" }}>CPA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBranchData.map((branch, idx) => {
+                const leads = Number(branch.leads_generated) || 0
+                const conversions = Number(branch.conversions) || 0
+                const spend = branch.marketing_spend || 0
+                const cpl = leads > 0 ? Math.round(spend / leads) : 0
+                const cpa = conversions > 0 ? Math.round(spend / conversions) : 0
+                const conversionRate = leads > 0 ? ((conversions / leads) * 100) : 0
 
-                  return (
-                    <tr key={branch.branch} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold">
-                        {branch.branch}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">{campaigns}</td>
-                      <td className="px-4 py-3 text-right font-mono">{leads}</td>
-                      <td className="px-4 py-3 text-right font-mono">{conversions}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border ${conversionRate >= 15
-                          ? 'bg-green-500/15 text-green-700 border-green-500/25 shadow-sm shadow-green-500/10' :
-                          conversionRate >= 5
-                            ? 'bg-amber-500/15 text-amber-700 border-amber-500/25 shadow-sm shadow-amber-500/10' :
-                            'bg-red-500/15 text-red-700 border-red-500/25 shadow-sm shadow-red-500/10'
-                          } `}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${conversionRate >= 15 ? 'bg-green-500' :
-                            conversionRate >= 5 ? 'bg-amber-500' : 'bg-red-500'
-                            } `} />
-                          {conversionRate.toFixed(1)}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold text-[#003c71]">
-                        {formatCurrency(spend)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">{formatCurrency(cpl)}</td>
-                      <td className="px-4 py-3 text-right font-mono">
-                        {cpa > 0 ? formatCurrency(cpa) : 'N/A'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                return (
+                  <tr key={branch.branch + idx}>
+                    <td style={{ fontWeight: 600 }}>{branch.branch}</td>
+                    <td style={{ textAlign: "center" }}>{branch.campaigns}</td>
+                    <td style={{ textAlign: "center" }}>{leads}</td>
+                    <td style={{ textAlign: "center" }}>{conversions}</td>
+                    <td style={{ textAlign: "center" }}>
+                      <span style={{
+                        padding: "4px 8px",
+                        background: conversionRate >= 10 ? "#dcfce7" : conversionRate > 0 ? "#fef3c7" : "#fee2e2",
+                        color: conversionRate >= 10 ? "#166534" : conversionRate > 0 ? "#92400e" : "#991b1b",
+                        borderRadius: "9999px",
+                        fontSize: "12px",
+                        fontWeight: 600
+                      }}>
+                        {conversionRate.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 600, color: "#003c71" }}>{formatCurrency(spend)}</td>
+                    <td style={{ textAlign: "right" }}>{cpl > 0 ? `₹${cpl}` : "₹0"}</td>
+                    <td style={{ textAlign: "right" }}>{cpa > 0 ? `₹${cpa}` : "₹0"}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

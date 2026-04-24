@@ -2,24 +2,13 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Upload, Download, Loader2, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
-
-interface UploadResult {
-  created: number
-  updated: number
-  skipped: number
-  errors: string[]
-  message: string
-}
 
 export function DispatchHeaderActions() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
-  const [showResult, setShowResult] = useState(false)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -37,7 +26,6 @@ export function DispatchHeaderActions() {
     }
 
     setUploading(true)
-    setShowResult(false)
 
     try {
       const formData = new FormData()
@@ -55,10 +43,7 @@ export function DispatchHeaderActions() {
       }
 
       if (res.ok) {
-        setUploadResult(data)
-        setShowResult(true)
         if (data.errors && data.errors.length > 0) {
-          // Show warning if some rows had errors
           toast.warning(`${data.message} (with ${data.errors.length} error${data.errors.length > 1 ? 's' : ''})`)
         } else {
           toast.success(data.message)
@@ -174,86 +159,31 @@ export function DispatchHeaderActions() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-3">
-      <div className="flex gap-2">
-        {/* Upload Excel */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[#003c71] hover:bg-[#002a52] text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-60"
-        >
-          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          {uploading ? "Processing..." : "Upload Courier Excel"}
-        </button>
-        <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} />
+    <div style={{ display: 'flex', gap: '12px' }}>
+      {/* Upload Excel */}
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        className="btn btn-secondary"
+      >
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: '6px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        {uploading ? "Processing..." : "Upload Courier Excel"}
+      </button>
+      <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} />
 
-        {/* Template download */}
-        <a
-          href="/dispatch-template.xlsx"
-          download
-          className="flex items-center gap-2 h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm font-medium transition-colors"
-          title="Download Excel template"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Template
-        </a>
-
-        {/* Export PDF */}
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="flex items-center gap-2 h-9 px-4 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-60"
-        >
-          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          {exporting ? "Exporting..." : "Export Report"}
-        </button>
-      </div>
-
-      {/* Upload result summary */}
-      {showResult && uploadResult && (
-        <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-[#003c71]" />
-              <p className="font-semibold text-sm text-slate-800">Upload Complete</p>
-            </div>
-            <button onClick={() => setShowResult(false)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <div className="text-center p-2 bg-emerald-50 rounded-lg">
-              <p className="text-xl font-bold text-emerald-600">{uploadResult.created}</p>
-              <p className="text-xs text-emerald-600 font-medium">Created</p>
-            </div>
-            <div className="text-center p-2 bg-blue-50 rounded-lg">
-              <p className="text-xl font-bold text-blue-600">{uploadResult.updated}</p>
-              <p className="text-xs text-blue-600 font-medium">Updated</p>
-            </div>
-            <div className="text-center p-2 bg-amber-50 rounded-lg">
-              <p className="text-xl font-bold text-amber-600">{uploadResult.skipped}</p>
-              <p className="text-xs text-amber-600 font-medium">Skipped</p>
-            </div>
-          </div>
-          {uploadResult.errors.length > 0 && (
-            <div className="space-y-1">
-              {uploadResult.errors.slice(0, 3).map((err, i) => (
-                <div key={i} className="flex items-start gap-1.5 text-xs text-red-600">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>{err}</span>
-                </div>
-              ))}
-              {uploadResult.errors.length > 3 && (
-                <p className="text-xs text-slate-400">+{uploadResult.errors.length - 3} more issues</p>
-              )}
-            </div>
-          )}
-          {uploadResult.errors.length === 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-600">
-              <CheckCircle className="h-3.5 w-3.5" />
-              <span>All rows processed successfully</span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Export PDF */}
+      <button
+        onClick={handleExport}
+        disabled={exporting}
+        className="btn btn-primary"
+      >
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: '6px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        {exporting ? "Exporting..." : "Export Report"}
+      </button>
     </div>
   )
 }
