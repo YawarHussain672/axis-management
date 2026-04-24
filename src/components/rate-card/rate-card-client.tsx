@@ -323,7 +323,13 @@ export function RateCardClient({ initialItems }: RateCardClientProps) {
       {/* Add Item Modal */}
       {addOpen && (
         <Modal title="Add Rate Card Item" subtitle="Add a new item to the rate card" onClose={() => setAddOpen(false)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!addLoading) addNewItem()
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+          >
             <div className="form-group">
               <label className="form-label">Item Name</label>
               <input
@@ -397,11 +403,11 @@ export function RateCardClient({ initialItems }: RateCardClientProps) {
             </div>
             <div className="form-group" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={addNewItem} disabled={addLoading}>
+              <button type="submit" className="btn btn-primary" disabled={addLoading}>
                 {addLoading ? <><LoaderIcon /> Adding...</> : "Add Item"}
               </button>
             </div>
-          </div>
+          </form>
         </Modal>
       )}
     </div>
