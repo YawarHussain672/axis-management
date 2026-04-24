@@ -38,7 +38,7 @@ interface FileUploadButtonProps {
   projectId: string
   fileType: "PO" | "CHALLAN" | "INVOICE"
   label: string
-  existingFiles: { id: string; filename: string; url: string; size?: number; uploadedAt?: string }[]
+  existingFiles: { id: string; filename: string; url: string; size?: number | null; uploadedAt?: string | null }[]
   isAdmin?: boolean
 }
 
