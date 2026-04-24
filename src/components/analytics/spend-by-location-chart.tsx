@@ -33,17 +33,24 @@ export function SpendByLocationChart({ data }: SpendByLocationChartProps) {
         layout="vertical"
         margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#bae6fd" horizontal={false} />
         <XAxis
           type="number"
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: '#64748b' }}
           tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+          axisLine={{ stroke: '#7dd3fc', strokeWidth: 1 }}
         />
-        <YAxis type="category" dataKey="location" tick={{ fontSize: 12 }} width={70} />
+        <YAxis
+          type="category"
+          dataKey="location"
+          tick={{ fontSize: 12, fill: '#374151' }}
+          width={70}
+          axisLine={{ stroke: '#7dd3fc', strokeWidth: 1 }}
+        />
         <Tooltip
           formatter={(value: number) => [formatCurrency(value), "Spend"]}
         />
-        <Bar dataKey="spend" fill="#003c71" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="spend" fill="#38bdf8" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )

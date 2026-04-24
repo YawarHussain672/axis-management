@@ -171,9 +171,29 @@ export function ApprovalActions({ approvalId, reminderCount, isAdmin }: Approval
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Reason for rejection"
-                rows={4}
+                placeholder="Enter a clear rejection reason so the POC can raise a revised request..."
+                rows={6}
                 className="form-textarea"
+                style={{
+                  width: '100%',
+                  minHeight: '120px',
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  lineHeight: '1.6',
+                  resize: 'vertical',
+                  border: '1px solid var(--gray-300)',
+                  borderRadius: '10px',
+                  outline: 'none',
+                  transition: 'border-color 150ms ease, box-shadow 150ms ease'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--axis-accent)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0, 168, 204, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--gray-300)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
 

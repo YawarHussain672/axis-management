@@ -9,6 +9,8 @@ import { ProjectStatus, FileType } from "@prisma/client"
 import { UpdateStatusButton } from "@/components/projects/update-status-button"
 import { DeleteProjectButton } from "@/components/projects/delete-project-button"
 import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
+import { FileUploadButton } from "@/components/projects/file-upload-button"
+import { TrackButton } from "@/components/dispatch/track-button"
 import { StatusBadge } from "@/components/ui/status-badge"
 
 // SVG Icons matching HTML exactly
@@ -536,13 +538,17 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                 </div>
               </div>
               {project.dispatch?.trackingId && (
-                <button className="btn btn-secondary" style={{ marginTop: '16px', width: '100%' }} onClick={() => window.open(`https://www.google.com/search?q=${project.dispatch?.courier}+${project.dispatch?.trackingId}`, '_blank')}>
-                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  Track Shipment
-                </button>
+                <div style={{ marginTop: '16px' }}>
+                  <TrackButton
+                    courier={project.dispatch.courier}
+                    trackingId={project.dispatch.trackingId}
+                    dispatchDate={project.dispatch.dispatchDate}
+                    expectedDelivery={project.dispatch.expectedDelivery}
+                    actualDelivery={project.dispatch.actualDelivery}
+                    variant="secondary"
+                    fullWidth
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -554,121 +560,31 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             </div>
             <div className="card-body">
               {/* Purchase Order */}
-              <div className="doc-section" style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ fontWeight: 700, fontSize: '14px' }}>Purchase Order (PO)</h4>
-                  {isAdmin && (
-                    <button className="doc-upload-btn">
-                      <UploadIcon /> Upload PO
-                    </button>
-                  )}
-                </div>
-                {project.files.filter((f) => f.type === "PO").length > 0 ? (
-                  project.files.filter((f) => f.type === "PO").map((f) => (
-                    <div key={f.id} className="doc-item">
-                      <div className="doc-info">
-                        <div className="doc-icon">PDF</div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.filename}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
-                            Uploaded: {f.uploadedAt ? formatDate(f.uploadedAt) : '-'} • {f.size ? `${(f.size / 1024).toFixed(0)} KB` : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="doc-actions">
-                        <a href={f.url} download className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                          <DownloadIcon />
-                        </a>
-                        {isAdmin && (
-                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', color: 'var(--color-error)' }}>
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ color: 'var(--gray-500)', fontSize: '13px' }}>No documents uploaded</p>
-                )}
-              </div>
+              <FileUploadButton
+                projectId={project.id}
+                fileType="PO"
+                label="Purchase Order (PO)"
+                existingFiles={project.files.filter((f) => f.type === "PO")}
+                isAdmin={isAdmin}
+              />
 
               {/* Delivery Challan */}
-              <div className="doc-section" style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ fontWeight: 700, fontSize: '14px' }}>Delivery Challan</h4>
-                  {isAdmin && (
-                    <button className="doc-upload-btn">
-                      <UploadIcon /> Upload Challan
-                    </button>
-                  )}
-                </div>
-                {project.files.filter((f) => f.type === "CHALLAN").length > 0 ? (
-                  project.files.filter((f) => f.type === "CHALLAN").map((f) => (
-                    <div key={f.id} className="doc-item">
-                      <div className="doc-info">
-                        <div className="doc-icon">PDF</div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.filename}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
-                            Uploaded: {f.uploadedAt ? formatDate(f.uploadedAt) : '-'} • {f.size ? `${(f.size / 1024).toFixed(0)} KB` : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="doc-actions">
-                        <a href={f.url} download className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                          <DownloadIcon />
-                        </a>
-                        {isAdmin && (
-                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', color: 'var(--color-error)' }}>
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ color: 'var(--gray-500)', fontSize: '13px' }}>No documents uploaded</p>
-                )}
-              </div>
+              <FileUploadButton
+                projectId={project.id}
+                fileType="CHALLAN"
+                label="Delivery Challan"
+                existingFiles={project.files.filter((f) => f.type === "CHALLAN")}
+                isAdmin={isAdmin}
+              />
 
               {/* Tax Invoice */}
-              <div className="doc-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ fontWeight: 700, fontSize: '14px' }}>Tax Invoice</h4>
-                  {isAdmin && (
-                    <button className="doc-upload-btn">
-                      <UploadIcon /> Upload Invoice
-                    </button>
-                  )}
-                </div>
-                {project.files.filter((f) => f.type === "INVOICE").length > 0 ? (
-                  project.files.filter((f) => f.type === "INVOICE").map((f) => (
-                    <div key={f.id} className="doc-item">
-                      <div className="doc-info">
-                        <div className="doc-icon">PDF</div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '14px' }}>{f.filename}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
-                            Uploaded: {f.uploadedAt ? formatDate(f.uploadedAt) : '-'} • {f.size ? `${(f.size / 1024).toFixed(0)} KB` : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="doc-actions">
-                        <a href={f.url} download className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                          <DownloadIcon />
-                        </a>
-                        {isAdmin && (
-                          <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', color: 'var(--color-error)' }}>
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ color: 'var(--gray-500)', fontSize: '13px' }}>No documents uploaded</p>
-                )}
-              </div>
+              <FileUploadButton
+                projectId={project.id}
+                fileType="INVOICE"
+                label="Tax Invoice"
+                existingFiles={project.files.filter((f) => f.type === "INVOICE")}
+                isAdmin={isAdmin}
+              />
             </div>
           </div>
         </div>

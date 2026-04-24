@@ -1,11 +1,52 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { MapPin, ExternalLink, Truck, Calendar, Package, Copy, CheckCircle2 } from "lucide-react"
 import { formatDate } from "@/utils/formatters"
 import { toast } from "sonner"
+
+// SVG Icons
+const MapPinIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
+const TruckIcon = () => (
+  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M21 12v7a1 1 0 01-1 1h-1" />
+  </svg>
+)
+
+const PackageIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+  </svg>
+)
+
+const CalendarIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+  </svg>
+)
+
+const CopyIcon = () => (
+  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+)
+
+const ExternalLinkIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+)
 
 interface TrackButtonProps {
   courier: string
@@ -13,6 +54,8 @@ interface TrackButtonProps {
   dispatchDate: Date | string | null
   expectedDelivery: Date | string | null
   actualDelivery: Date | string | null
+  variant?: "primary" | "secondary"
+  fullWidth?: boolean
 }
 
 // Direct tracking URLs for each courier — lands on the actual tracking result page
@@ -80,11 +123,21 @@ function getTrackingUrl(courier: string, trackingId: string): { url: string; lab
   }
 }
 
-export function TrackButton({ courier, trackingId, dispatchDate, expectedDelivery, actualDelivery }: TrackButtonProps) {
+export function TrackButton({
+  courier,
+  trackingId,
+  dispatchDate,
+  expectedDelivery,
+  actualDelivery,
+  variant = "primary",
+  fullWidth = false
+}: TrackButtonProps) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const { url, label } = getTrackingUrl(courier, trackingId)
+
+  const isSecondary = variant === "secondary"
 
   const copyTrackingId = () => {
     navigator.clipboard.writeText(trackingId)
@@ -94,110 +147,331 @@ export function TrackButton({ courier, trackingId, dispatchDate, expectedDeliver
   }
 
   const isDelivered = !!actualDelivery
+  const closeModal = () => setOpen(false)
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <MapPin className="h-4 w-4" />
-          Track
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Truck className="h-5 w-5 text-blue-600" />
-            Track Shipment
-          </DialogTitle>
-          <DialogDescription>Live tracking via {label}</DialogDescription>
-        </DialogHeader>
+    <>
+      {/* Track Button */}
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          width: fullWidth ? '100%' : 'auto',
+          padding: isSecondary ? '10px 16px' : '8px 14px',
+          borderRadius: '8px',
+          border: isSecondary ? '1px solid #e5e7eb' : '1px solid #003c71',
+          background: isSecondary ? '#ffffff' : '#ffffff',
+          color: isSecondary ? '#374151' : '#003c71',
+          fontSize: isSecondary ? '14px' : '13px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 150ms ease'
+        }}
+        onMouseEnter={(e) => {
+          if (isSecondary) {
+            e.currentTarget.style.background = '#f9fafb'
+            e.currentTarget.style.borderColor = '#d1d5db'
+          } else {
+            e.currentTarget.style.background = '#003c71'
+            e.currentTarget.style.color = '#ffffff'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isSecondary) {
+            e.currentTarget.style.background = '#ffffff'
+            e.currentTarget.style.borderColor = '#e5e7eb'
+          } else {
+            e.currentTarget.style.background = '#ffffff'
+            e.currentTarget.style.color = '#003c71'
+          }
+        }}
+      >
+        <MapPinIcon />
+        {isSecondary ? 'Track Shipment' : 'Track'}
+      </button>
 
-        <div className="space-y-4 py-2">
-          {/* Courier & Tracking ID */}
-          <div className="p-4 bg-slate-50 rounded-xl space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-500">Courier</span>
-              <span className="font-semibold text-slate-900">{courier}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-500">Tracking ID</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-semibold text-slate-900">{trackingId}</span>
-                <button onClick={copyTrackingId} className="text-slate-400 hover:text-slate-700 transition-colors">
-                  {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                </button>
+      {/* Track Shipment Modal */}
+      {open && (
+        <div
+          onClick={closeModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '400px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header with Brand Color */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #003c71 0%, #002a52 100%)',
+                padding: '16px 20px',
+                textAlign: 'center',
+                color: '#ffffff',
+                flexShrink: 0
+              }}
+            >
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 8px',
+                  backdropFilter: 'blur(4px)'
+                }}
+              >
+                <div style={{ color: '#ffffff', transform: 'scale(0.75)' }}>
+                  <TruckIcon />
+                </div>
               </div>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>
+                Track Shipment
+              </h2>
+              <p style={{ fontSize: '11px', color: '#93c5fd', margin: '2px 0 0 0' }}>
+                via {label}
+              </p>
             </div>
-          </div>
 
-          {/* Timeline */}
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">Shipment Timeline</h4>
-
-            <div className="relative pl-6">
-              <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-slate-200" />
-
-              {/* Dispatched */}
-              <div className="relative mb-4">
-                <div className="absolute -left-4 top-1 w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow" />
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-blue-600" />
-                    <p className="text-sm font-semibold text-blue-900">Dispatched</p>
+            {/* Content - Scrollable */}
+            <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1 }}>
+              {/* Courier & Tracking ID */}
+              <div
+                style={{
+                  background: '#f8fafc',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  marginBottom: '14px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Courier</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{courier}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Tracking ID</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+                      {trackingId}
+                    </span>
+                    <button
+                      onClick={copyTrackingId}
+                      style={{
+                        padding: '4px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: copied ? '#16a34a' : '#94a3b8',
+                        cursor: 'pointer',
+                        transition: 'color 150ms ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!copied) e.currentTarget.style.color = '#64748b'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!copied) e.currentTarget.style.color = '#94a3b8'
+                      }}
+                    >
+                      {copied ? <CheckIcon /> : <CopyIcon />}
+                    </button>
                   </div>
-                  <p className="text-xs text-blue-600 mt-0.5">{dispatchDate ? formatDate(dispatchDate) : "—"}</p>
                 </div>
               </div>
 
-              {/* Expected Delivery */}
-              <div className="relative mb-4">
-                <div className={`absolute -left-4 top-1 w-4 h-4 rounded-full border-2 border-white shadow ${isDelivered ? "bg-green-500" : "bg-amber-400"}`} />
-                <div className={`rounded-lg p-3 ${isDelivered ? "bg-green-50" : "bg-amber-50"}`}>
-                  <div className="flex items-center gap-2">
-                    <Calendar className={`h-4 w-4 ${isDelivered ? "text-green-600" : "text-amber-600"}`} />
-                    <p className={`text-sm font-semibold ${isDelivered ? "text-green-900" : "text-amber-900"}`}>
-                      Expected Delivery
-                    </p>
-                  </div>
-                  <p className={`text-xs mt-0.5 ${isDelivered ? "text-green-600" : "text-amber-600"}`}>
-                    {expectedDelivery ? formatDate(expectedDelivery) : "TBD"}
-                  </p>
-                </div>
-              </div>
+              {/* Timeline */}
+              <div style={{ marginBottom: '14px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: 700, color: '#374151', marginBottom: '12px' }}>
+                  Shipment Timeline
+                </h4>
 
-              {/* Delivered */}
-              <div className="relative">
-                <div className={`absolute -left-4 top-1 w-4 h-4 rounded-full border-2 border-white shadow ${isDelivered ? "bg-green-600" : "bg-slate-200"}`} />
-                <div className={`rounded-lg p-3 ${isDelivered ? "bg-green-100" : "bg-slate-50"}`}>
-                  <div className="flex items-center gap-2">
-                    <MapPin className={`h-4 w-4 ${isDelivered ? "text-green-700" : "text-slate-400"}`} />
-                    <p className={`text-sm font-semibold ${isDelivered ? "text-green-900" : "text-slate-400"}`}>
-                      {isDelivered ? "Delivered ✓" : "Awaiting Delivery"}
-                    </p>
+                <div style={{ position: 'relative', paddingLeft: '24px' }}>
+                  {/* Timeline Line */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '8px',
+                      top: '6px',
+                      bottom: '6px',
+                      width: '2px',
+                      background: '#e2e8f0'
+                    }}
+                  />
+
+                  {/* Dispatched */}
+                  <div style={{ position: 'relative', marginBottom: '12px' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '-18px',
+                        top: '2px',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: '#003c71',
+                        border: '2px solid #ffffff',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <div
+                      style={{
+                        background: '#eff6ff',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        border: '1px solid #dbeafe'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                        <div style={{ color: '#003c71' }}>
+                          <PackageIcon />
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#003c71' }}>Dispatched</span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        {dispatchDate ? formatDate(dispatchDate) : "—"}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Expected Delivery */}
+                  <div style={{ position: 'relative', marginBottom: '12px' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '-18px',
+                        top: '2px',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: isDelivered ? '#16a34a' : '#f59e0b',
+                        border: '2px solid #ffffff',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <div
+                      style={{
+                        background: isDelivered ? '#f0fdf4' : '#fffbeb',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        border: isDelivered ? '1px solid #bbf7d0' : '1px solid #fde68a'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                        <div style={{ color: isDelivered ? '#16a34a' : '#d97706' }}>
+                          <CalendarIcon />
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: isDelivered ? '#16a34a' : '#d97706' }}>
+                          {isDelivered ? 'Delivered On' : 'Expected Delivery'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                        {expectedDelivery ? formatDate(expectedDelivery) : "TBD"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actual Delivery */}
                   {isDelivered && (
-                    <p className="text-xs text-green-700 mt-0.5">{formatDate(actualDelivery!)}</p>
+                    <div style={{ position: 'relative' }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '-18px',
+                          top: '2px',
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: '#16a34a',
+                          border: '2px solid #ffffff',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <div
+                        style={{
+                          background: '#f0fdf4',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          border: '1px solid #bbf7d0'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                          <div style={{ color: '#16a34a' }}>
+                            <MapPinIcon />
+                          </div>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a' }}>
+                            Delivered ✓
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {formatDate(actualDelivery!)}
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
+
+              {/* Track Button */}
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'linear-gradient(135deg, #003c71 0%, #002a52 100%)',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                  transition: 'all 150ms ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #002a52 0%, #001f3d 100%)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #003c71 0%, #002a52 100%)'
+                }}
+              >
+                <ExternalLinkIcon />
+                Track on {label}
+              </a>
+              <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', margin: '8px 0 0 0' }}>
+                Opens official {label} tracking page
+              </p>
             </div>
           </div>
-
-          {/* Track on courier website */}
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-[#003c71] hover:bg-[#002a52] text-white font-semibold rounded-xl transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Track on {label} Website
-          </a>
-          <p className="text-xs text-center text-slate-400">
-            Opens the official {label} tracking page with your AWB number
-          </p>
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </>
   )
 }

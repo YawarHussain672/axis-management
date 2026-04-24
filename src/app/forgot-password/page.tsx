@@ -33,59 +33,61 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#003c71] to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur mb-4">
-            <Printer className="h-8 w-8 text-white" />
+    <div className="forgot-page">
+      <div className="forgot-container">
+        {/* Logo Header */}
+        <div className="forgot-header">
+          <div className="forgot-logo">
+            <Printer className="forgot-logo-icon" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Axis Max Life</h1>
-          <p className="text-blue-200 text-sm mt-1">Print Management System</p>
+          <h1 className="forgot-title">Axis Max Life</h1>
+          <p className="forgot-subtitle">Print Management System</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        {/* Form Card */}
+        <div className="forgot-card">
           {sent ? (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="forgot-success">
+              <div className="forgot-success-icon">
+                <CheckCircle className="forgot-check-icon" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Check your email</h2>
-              <p className="text-slate-500 text-sm mb-6">
+              <h2 className="forgot-card-title">Check your email</h2>
+              <p className="forgot-card-text">
                 If an account exists for <strong>{email}</strong>, we&apos;ve sent a password reset link. Check your inbox and spam folder.
               </p>
-              <Link href="/login" className="text-[#003c71] font-semibold text-sm hover:underline flex items-center justify-center gap-1">
-                <ArrowLeft className="h-4 w-4" /> Back to login
+              <Link href="/login" className="forgot-link">
+                <ArrowLeft className="forgot-link-icon" /> Back to login
               </Link>
             </div>
           ) : (
             <>
-              <h2 className="text-xl font-bold text-slate-900 mb-1">Forgot your password?</h2>
-              <p className="text-slate-500 text-sm mb-6">Enter your email and we&apos;ll send you a reset link.</p>
+              <h2 className="forgot-card-title">Forgot your password?</h2>
+              <p className="forgot-card-text">Enter your email and we&apos;ll send you a reset link.</p>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
+              <form onSubmit={handleSubmit} className="forgot-form">
+                <div className="forgot-field">
+                  <label className="forgot-label">Email address</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@axismaxlife.com"
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#003c71]/20 focus:border-[#003c71]"
+                    className="forgot-input"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-[#003c71] hover:bg-[#002a52] text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="forgot-submit"
                 >
-                  {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Sending...</> : "Send Reset Link"}
+                  {loading ? <><Loader2 className="forgot-spinner" />Sending...</> : "Send Reset Link"}
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
-                <Link href="/login" className="text-[#003c71] font-semibold text-sm hover:underline flex items-center justify-center gap-1">
-                  <ArrowLeft className="h-4 w-4" /> Back to login
+              <div className="forgot-back">
+                <Link href="/login" className="forgot-link">
+                  <ArrowLeft className="forgot-link-icon" /> Back to login
                 </Link>
               </div>
             </>
