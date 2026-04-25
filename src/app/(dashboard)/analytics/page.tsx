@@ -60,7 +60,7 @@ export default function AnalyticsPage() {
         setData(analyticsData)
       }
     } catch {
-      console.log("Analytics fetch retry pending...")
+      // Silent retry
     } finally {
       setLoading(false)
     }

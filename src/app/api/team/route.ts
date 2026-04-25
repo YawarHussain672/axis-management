@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(safeUser, { status: 201 })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to create team member" }, { status: 500 })
   }
 }

@@ -140,15 +140,11 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
       const method = mode === "add" ? "POST" : "PUT"
       const body = mode === "add" ? form : { name: form.name, phone: form.phone, role: form.role, location: form.location, branch: form.branch }
 
-      console.log(`[TeamActions] Saving: ${method} ${url}`, body)
-
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-
-      console.log(`[TeamActions] Response status: ${res.status}`)
 
       if (res.ok) {
         toast.success(mode === "add" ? "Team member added!" : "Member updated!")
@@ -156,7 +152,6 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
         router.refresh()
       } else {
         const text = await res.text()
-        console.error(`[TeamActions] Error response: ${text}`)
         let data
         try {
           data = JSON.parse(text)
@@ -166,7 +161,6 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
         toast.error(data.error || `Failed (${res.status})`)
       }
     } catch (err) {
-      console.error("[TeamActions] Save error:", err)
       toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)

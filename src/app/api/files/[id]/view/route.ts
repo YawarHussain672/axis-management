@@ -36,10 +36,10 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Fetch file from Cloudinary
+    // Fetch file from Cloudinary using original URL
     const response = await fetch(fileRecord.url)
     if (!response.ok) {
-      return NextResponse.json({ error: "Failed to fetch file" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch file from Cloudinary", details: `Status: ${response.status}`, url: fileRecord.url }, { status: 500 })
     }
 
     const blob = await response.blob()
@@ -51,14 +51,15 @@ export async function GET(
     // Create headers
     const headers = new Headers()
     headers.set("Content-Type", contentType)
-    headers.set("Content-Length", arrayBuffer.byteLength.toString())
 
     if (download) {
-      // Force download
-      headers.set("Content-Disposition", `attachment; filename="${fileRecord.filename}"`)
+      // Force download with safe filename
+      const safeFilename = fileRecord.filename.replace(/[^a-zA-Z0-9.\-_]/g, "_")
+      headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`)
     } else {
-      // Inline display (for viewing in browser)
-      headers.set("Content-Disposition", `inline; filename="${fileRecord.filename}"`)
+      // Inline display (for viewing in browser) with safe filename
+      const safeFilename = fileRecord.filename.replace(/[^a-zA-Z0-9.\-_]/g, "_")
+      headers.set("Content-Disposition", `inline; filename="${safeFilename}"`)
     }
 
     // Add cache headers
@@ -66,7 +67,6 @@ export async function GET(
 
     return new NextResponse(arrayBuffer, { headers })
   } catch (error) {
-    console.error("File view error:", error)
     return NextResponse.json({ error: "Failed to serve file" }, { status: 500 })
   }
 }

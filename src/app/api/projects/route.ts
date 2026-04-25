@@ -104,7 +104,6 @@ export async function GET(request: NextRequest) {
       locations: locationGroups.map((l) => l.location),
     })
   } catch (error) {
-    console.error("GET /api/projects error:", error)
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
   }
 }
@@ -143,7 +142,6 @@ export async function POST(request: NextRequest) {
       priced = await priceCollaterals(collaterals)
     } catch (error) {
       const pricingError = error instanceof Error ? error.message : "Invalid collateral pricing"
-      console.error("[API] Pricing error:", pricingError)
       return NextResponse.json({
         error: pricingError,
       }, { status: 400 })
@@ -209,20 +207,14 @@ export async function POST(request: NextRequest) {
       })
 
       // Notify all admins of new approval request
-      console.log("[API] Calling notifyAdminsNewApproval for project:", project.id)
       await notifyAdminsNewApproval(project.id, project.name, project.projectId, poc.name || "A POC")
-      console.log("[API] notifyAdminsNewApproval completed")
     } catch (notifyError) {
       // Log but don't fail - project is already created
-      console.error("[API] Post-creation notifications failed:", notifyError)
     }
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : ""
-    console.error("[API] POST /api/projects CRITICAL ERROR:", errorMessage)
-    console.error("[API] Error stack:", errorStack)
     return NextResponse.json({
       error: "Failed to create project",
       debug: process.env.NODE_ENV === "development" ? errorMessage : undefined

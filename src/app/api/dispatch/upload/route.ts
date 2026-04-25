@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ProjectStatus } from "@prisma/client"
-import * as XLSX from "xlsx"
+import ExcelJS from "exceljs"
 import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
 import { logActivity } from "@/lib/audit"
 import { notifyProjectDispatched } from "@/lib/notifications"
@@ -15,7 +15,6 @@ import { notifyProjectDispatched } from "@/lib/notifications"
  * POST /api/dispatch/upload
  */
 export async function POST(request: NextRequest) {
-  console.log("[DISPATCH UPLOAD] Starting upload process...")
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -33,38 +32,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Only Excel (.xlsx, .xls) or CSV files are supported" }, { status: 400 })
     }
 
-    console.log(`[DISPATCH UPLOAD] Processing file: ${file.name} (${file.size} bytes)`)
+    // Parse Excel with ExcelJS
+    const arrayBuffer = await file.arrayBuffer()
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(Buffer.from(arrayBuffer) as unknown as ExcelJS.Buffer)
+    const sheet = workbook.worksheets[0]
 
-    // Parse Excel with better options
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const workbook = XLSX.read(buffer, {
-      type: "buffer",
-      cellDates: true,
-      raw: false,
-      dateNF: 'yyyy-mm-dd'
-    })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    if (!sheet) {
+      return NextResponse.json({ error: "Excel file has no worksheets" }, { status: 400 })
+    }
 
-    // Log sheet info
-    console.log("[DISPATCH UPLOAD] Sheet name:", workbook.SheetNames[0])
-    console.log("[DISPATCH UPLOAD] Sheet range:", sheet['!ref'])
-
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",
-      raw: false,
-      dateNF: 'yyyy-mm-dd'
+    const rows: Record<string, unknown>[] = []
+    const headerRow = sheet.getRow(1)
+    const headers: string[] = []
+    headerRow.eachCell((cell: ExcelJS.Cell) => {
+      headers.push(cell.value?.toString() || "")
     })
 
-    console.log(`[DISPATCH UPLOAD] Parsed ${rows.length} rows`)
+    sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
+      if (rowNumber === 1) return // Skip header row
+      const rowData: Record<string, unknown> = {}
+      row.eachCell((cell: ExcelJS.Cell, colNumber: number) => {
+        const header = headers[colNumber - 1]
+        if (header) {
+          const val = cell.value
+          // Convert ExcelJS CellValue to compatible type
+          if (val === null || val === undefined) {
+            rowData[header] = null
+          } else if (typeof val === 'string' || typeof val === 'number' || val instanceof Date) {
+            rowData[header] = val
+          } else {
+            rowData[header] = String(val)
+          }
+        }
+      })
+      rows.push(rowData)
+    })
 
     if (rows.length === 0) {
       return NextResponse.json({ error: "Excel file is empty or has no data rows" }, { status: 400 })
-    }
-
-    // Log first row to debug column names
-    if (rows.length > 0) {
-      console.log("[DISPATCH UPLOAD] First row columns:", Object.keys(rows[0]))
-      console.log("[DISPATCH UPLOAD] First row data:", rows[0])
     }
 
     // Normalize column names - more robust
@@ -77,14 +83,6 @@ export async function POST(request: NextRequest) {
 
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex]
-
-      // Log all columns for this row to debug
-      if (rowIndex === 0) {
-        console.log("[DISPATCH UPLOAD] All columns in row 1:")
-        Object.keys(row).forEach(k => {
-          console.log(`  - "${k}" (normalized: "${normalize(k)}") = "${row[k]}"`)
-        })
-      }
 
       // More robust value getter
       const get = (keys: string[]) => {
@@ -111,8 +109,6 @@ export async function POST(request: NextRequest) {
       const expectedDeliveryRaw = get(["expecteddelivery", "expected_delivery", "edd", "deliverydate", "expecteddate", "deliveryon"])
       const notes = get(["notes", "remarks", "comments", "note"])
 
-      console.log(`[DISPATCH UPLOAD] Row ${rowIndex + 1}: projectId="${projectId}", courier="${courier}", trackingId="${trackingId}"`)
-
       if (!projectId || !courier || !trackingId) {
         results.skipped++
         const missing = [!projectId && "Project ID", !courier && "Courier", !trackingId && "Tracking ID"].filter(Boolean).join(", ")
@@ -135,30 +131,24 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      if (project.status !== ProjectStatus.PRINTING && project.status !== ProjectStatus.DISPATCHED) {
+      if (project.status !== ProjectStatus.PRINTING && project.status !== ProjectStatus.DISPATCHED && project.status !== ProjectStatus.APPROVED) {
         results.skipped++
-        results.errors.push(`Project ${projectId} must be PRINTING before dispatch upload (current: ${project.status})`)
+        results.errors.push(`Project ${projectId} must be APPROVED, PRINTING, or DISPATCHED before dispatch upload (current: ${project.status})`)
         continue
       }
 
       // Better date parsing
-      const parseDate = (val: string): Date | undefined => {
-        if (!val || val === "") return undefined
-
-        // Try parsing as Excel date serial number
-        if (!isNaN(Number(val))) {
-          const excelDate = XLSX.SSF.parse_date_code(Number(val))
-          if (excelDate) {
-            return new Date(excelDate.y, excelDate.m - 1, excelDate.d)
-          }
-        }
+      const parseDate = (val: unknown): Date | undefined => {
+        if (!val) return undefined
+        const strVal = String(val)
+        if (strVal === "") return undefined
 
         // Try standard date parsing
-        const d = new Date(val)
+        const d = new Date(strVal)
         if (!isNaN(d.getTime())) return d
 
         // Try DD/MM/YYYY format
-        const parts = val.split(/[/\-.]/)
+        const parts = strVal.split(/[/\-.]/)
         if (parts.length === 3) {
           const [p1, p2, p3] = parts.map(Number)
           // Try DD/MM/YYYY
@@ -174,8 +164,6 @@ export async function POST(request: NextRequest) {
 
       const dispatchDate = parseDate(dispatchDateRaw)
       const expectedDelivery = parseDate(expectedDeliveryRaw)
-
-      console.log(`[DISPATCH UPLOAD] Row ${rowIndex + 1} dates: dispatchDate="${dispatchDateRaw}" → ${dispatchDate || 'invalid'}, expectedDelivery="${expectedDeliveryRaw}" → ${expectedDelivery || 'invalid'}`)
 
       // Upsert dispatch
       const existing = await prisma.dispatch.findUnique({ where: { projectId: project.id } })
@@ -233,7 +221,6 @@ export async function POST(request: NextRequest) {
       ...results,
     })
   } catch (error) {
-    console.error("[DISPATCH UPLOAD] Error:", error)
     const errorMessage = error instanceof Error ? error.message : "Failed to process file"
     return NextResponse.json({
       error: "Failed to process dispatch upload",

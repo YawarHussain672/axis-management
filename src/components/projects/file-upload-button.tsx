@@ -93,9 +93,6 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
         } catch {
           // If not JSON, use status text or first part of HTML
           errorMessage = res.statusText || "Upload failed"
-          if (text.includes("error")) {
-            console.error("Server error response:", text)
-          }
         }
         throw new Error(errorMessage)
       }
@@ -221,7 +218,17 @@ export function FileUploadButton({ projectId, fileType, label, existingFiles, is
                     try {
                       toast.loading("Downloading...", { id: `download-${f.id}` })
                       const res = await fetch(`/api/files/${f.id}/download`)
-                      if (!res.ok) throw new Error("Download failed")
+
+                      if (!res.ok) {
+                        const errorText = await res.text()
+                        throw new Error(errorText || "Download failed")
+                      }
+
+                      const contentType = res.headers.get("content-type")
+                      if (contentType && contentType.includes("application/json")) {
+                        const errorData = await res.json()
+                        throw new Error(errorData.error || "Download failed")
+                      }
 
                       const blob = await res.blob()
                       const url = window.URL.createObjectURL(blob)

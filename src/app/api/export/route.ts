@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: "Invalid type" }, { status: 400 })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Export failed" }, { status: 500 })
   }
 }

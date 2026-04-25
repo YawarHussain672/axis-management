@@ -34,10 +34,10 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Fetch file from Cloudinary
+    // Fetch file from Cloudinary using original URL
     const response = await fetch(dispatch.podUrl)
     if (!response.ok) {
-      return NextResponse.json({ error: "Failed to fetch POD" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch POD from Cloudinary", details: `Status: ${response.status}`, url: dispatch.podUrl }, { status: 500 })
     }
 
     const blob = await response.blob()
@@ -55,7 +55,6 @@ export async function GET(
 
     return new NextResponse(arrayBuffer, { headers })
   } catch (error) {
-    console.error("POD view error:", error)
     return NextResponse.json({ error: "Failed to serve POD" }, { status: 500 })
   }
 }

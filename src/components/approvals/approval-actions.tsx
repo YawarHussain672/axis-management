@@ -52,8 +52,6 @@ export function ApprovalActions({ approvalId, reminderCount, isAdmin }: Approval
 
       // Log the raw response for debugging
       const responseText = await res.text()
-      console.log("Raw API response:", responseText)
-      console.log("HTTP Status:", res.status, res.statusText)
 
       let data
       try {
@@ -70,11 +68,9 @@ export function ApprovalActions({ approvalId, reminderCount, isAdmin }: Approval
         router.refresh()
       } else {
         toast.error(data.details || data.error || `Action failed (${res.status})`)
-        console.error("Approval API error:", data)
       }
     } catch (err) {
       toast.error("Network error. Please try again.")
-      console.error("Network error:", err)
     } finally {
       setLoading(null)
     }

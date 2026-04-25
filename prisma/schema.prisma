@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -138,7 +137,7 @@ model Dispatch {
 
 model RateCard {
   id            String   @id @default(cuid())
-  itemName      String   @unique
+  itemName      String
   specification String
   volumeSlabs   Json
   active        Boolean  @default(true)

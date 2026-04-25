@@ -72,7 +72,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json(dispatch)
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to update dispatch" }, { status: 500 })
   }
 }
@@ -123,7 +122,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return NextResponse.json(updated)
   } catch (error) {
-    console.error("[API] PATCH dispatch error:", error)
     return NextResponse.json({ error: "Failed to update dispatch" }, { status: 500 })
   }
 }

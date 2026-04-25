@@ -10,16 +10,11 @@ export async function createNotification(data: {
   link?: string
 }) {
   try {
-    console.log("[Notifications] Creating notification for user:", data.userId)
     await prisma.notification.create({ data })
     // Trigger real-time update
-    console.log("[Notifications] Broadcasting to Pusher channel:", CHANNELS.NOTIFICATIONS)
-    console.log("[Notifications] Event name:", EVENTS.NOTIFICATION_CREATED)
-    console.log("[Notifications] Payload:", { userId: data.userId })
     await pusherServer.trigger(CHANNELS.NOTIFICATIONS, EVENTS.NOTIFICATION_CREATED, { userId: data.userId })
-    console.log("[Notifications] Broadcast complete")
   } catch (error) {
-    console.error("[Notifications] Failed to create notification:", error)
+    // Silent fail - notification is not critical
   }
 }
 

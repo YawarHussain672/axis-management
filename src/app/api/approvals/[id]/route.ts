@@ -12,19 +12,14 @@ import { notifyProjectApproved, notifyProjectRejected } from "@/lib/notification
 const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  console.log("[APPROVALS API] POST request received")
   try {
     const session = await getServerSession(authOptions)
-    console.log("[APPROVALS API] Session:", session?.user?.id ? `User ${session.user.id}` : "No session")
 
     if (!session?.user?.id) {
-      console.log("[APPROVALS API] Unauthorized - no session")
       return NextResponse.json({ error: "Unauthorized", details: "Please log in again" }, { status: 401 })
     }
 
     const { id } = await params
-    console.log("[APPROVALS API] Approval ID:", id)
-    console.log("[APPROVALS API] User ID from session:", session.user.id)
 
     let body
     try {
@@ -41,20 +36,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Verify the user exists in database
-    console.log("[APPROVALS API] Checking if user exists:", session.user.id)
     const userExists = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { id: true }
     })
 
-    console.log("[APPROVALS API] User exists check result:", userExists ? "FOUND" : "NOT FOUND")
-
     if (!userExists) {
-      console.error("[APPROVALS API] User not found in database:", session.user.id)
       return NextResponse.json({ error: "User session invalid", details: "Please log out and log in again" }, { status: 401 })
     }
-
-    console.log("[APPROVALS API] User verified, proceeding with action:", action)
 
     // Get approval with project details
     let approval
@@ -66,7 +55,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
       })
     } catch (dbError) {
-      console.error("Database error fetching approval:", dbError)
       return NextResponse.json({ error: "Database error", details: dbError instanceof Error ? dbError.message : String(dbError) }, { status: 500 })
     }
 
@@ -98,7 +86,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           }),
         ])
       } catch (txError) {
-        console.error("Transaction error during approve:", txError)
         return NextResponse.json({ error: "Database transaction failed", details: txError instanceof Error ? txError.message : String(txError) }, { status: 500 })
       }
 
@@ -146,7 +133,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           }),
         ])
       } catch (txError) {
-        console.error("Transaction error during reject:", txError)
         return NextResponse.json({ error: "Database transaction failed", details: txError instanceof Error ? txError.message : String(txError) }, { status: 500 })
       }
 
@@ -211,7 +197,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Approval action error:", error)
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json({ error: "Failed to process approval", details: errorMessage }, { status: 500 })
   }

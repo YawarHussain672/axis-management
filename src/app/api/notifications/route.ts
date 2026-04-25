@@ -20,7 +20,6 @@ export async function GET() {
 
     return NextResponse.json({ notifications, unreadCount })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 })
   }
 }
@@ -38,7 +37,6 @@ export async function PATCH() {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to mark notifications as read" }, { status: 500 })
   }
 }
@@ -61,7 +59,6 @@ export async function DELETE() {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to delete notifications" }, { status: 500 })
   }
 }

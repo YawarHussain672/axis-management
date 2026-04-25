@@ -11,12 +11,10 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
-      console.error("[Download] No session or user ID")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { id } = await params
-    console.log(`[Download] File ID: ${id}, User: ${session.user.id}, Role: ${session.user.role}`)
 
     // Get file record
     const fileRecord = await prisma.fileUpload.findUnique({
@@ -25,26 +23,21 @@ export async function GET(
     })
 
     if (!fileRecord) {
-      console.error(`[Download] File not found: ${id}`)
       return NextResponse.json({ error: "File not found" }, { status: 404 })
     }
-
-    console.log(`[Download] File found: ${fileRecord.filename}, Project POC: ${fileRecord.project?.pocId}`)
 
     // Check permissions
     const isAdmin = session.user.role === "ADMIN"
     const isOwner = fileRecord.project?.pocId === session.user.id
 
-    console.log(`[Download] isAdmin: ${isAdmin}, isOwner: ${isOwner}`)
-
     if (!isAdmin && !isOwner) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Fetch file from Cloudinary
+    // Fetch file from Cloudinary using original URL
     const response = await fetch(fileRecord.url)
     if (!response.ok) {
-      return NextResponse.json({ error: "Failed to fetch file" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch file from Cloudinary", details: `Status: ${response.status}`, url: fileRecord.url }, { status: 500 })
     }
 
     const blob = await response.blob()
@@ -56,13 +49,13 @@ export async function GET(
     // Create headers for download
     const headers = new Headers()
     headers.set("Content-Type", contentType)
-    headers.set("Content-Length", arrayBuffer.byteLength.toString())
-    headers.set("Content-Disposition", `attachment; filename="${fileRecord.filename}"`)
+    // Use simple filename encoding to avoid browser compatibility issues
+    const safeFilename = fileRecord.filename.replace(/[^a-zA-Z0-9.\-_]/g, "_")
+    headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`)
     headers.set("Cache-Control", "public, max-age=3600")
 
     return new NextResponse(arrayBuffer, { headers })
   } catch (error) {
-    console.error("[Download] Error:", error)
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json({ error: "Failed to download file", details: errorMessage }, { status: 500 })
   }

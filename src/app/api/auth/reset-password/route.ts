@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Reset password error:", error)
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
   }
 }

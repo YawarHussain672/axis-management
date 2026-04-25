@@ -40,6 +40,88 @@ const ReceiptIcon = () => (
   </svg>
 )
 
+// Modal component defined outside to prevent re-creation on state changes
+interface ModalProps {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  onClose: () => void
+}
+
+const Modal = ({ title, subtitle, children, onClose }: ModalProps) => (
+  <div
+    className="modal-overlay"
+    onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(15, 23, 42, 0.6)",
+      backdropFilter: "blur(4px)",
+      zIndex: 9999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px"
+    }}
+  >
+    <div
+      className="modal"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        background: "white",
+        borderRadius: "20px",
+        width: "100%",
+        maxWidth: "500px",
+        maxHeight: "90vh",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+      }}
+    >
+      {/* Modal Header */}
+      <div
+        style={{
+          padding: "24px 32px",
+          borderBottom: "1px solid var(--gray-200)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start"
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</h2>
+          {subtitle && <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "4px" }}>{subtitle}</p>}
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            width: "36px",
+            height: "36px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--gray-400)",
+            background: "transparent",
+            border: "none",
+            borderRadius: "10px",
+            cursor: "pointer",
+            fontSize: "24px"
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.color = "var(--gray-600)" }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gray-400)" }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Modal Body */}
+      <div style={{ padding: "24px 32px", overflowY: "auto", flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+)
+
 export function RateCardClient({ initialItems }: RateCardClientProps) {
   const router = useRouter()
   const [items, setItems] = useState(initialItems)
@@ -110,15 +192,23 @@ export function RateCardClient({ initialItems }: RateCardClientProps) {
         body: JSON.stringify({ itemName: newItem.itemName, specification: newItem.specification, volumeSlabs: newItem.slabs }),
       })
       if (res.ok) {
-        const created = await res.json()
-        setItems([...items, created])
-        toast.success("Item added!")
+        const result = await res.json()
+        if (result.reactivated) {
+          // Item was reactivated (was previously soft-deleted)
+          setItems([...items.filter(i => i.id !== result.id), result])
+          toast.success(`Item "${result.itemName}" reactivated and updated!`)
+        } else {
+          // New item created
+          setItems([...items, result])
+          toast.success("Item added!")
+        }
         setAddOpen(false)
         setNewItem({ itemName: "", specification: "", slabs: [{ slab: "", price: 0 }] })
         router.refresh()
       } else {
         const d = await res.json()
-        toast.error(d.error || "Failed")
+        const errorMsg = d.details ? `${d.error}: ${d.details}` : d.error
+        toast.error(errorMsg || "Failed")
       }
     } catch {
       toast.error("Something went wrong")
@@ -126,81 +216,6 @@ export function RateCardClient({ initialItems }: RateCardClientProps) {
       setAddLoading(false)
     }
   }
-
-  // Modal component for Add Item
-  const Modal = ({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void }) => (
-    <div
-      className="modal-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.6)",
-        backdropFilter: "blur(4px)",
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px"
-      }}
-    >
-      <div
-        className="modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "white",
-          borderRadius: "20px",
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
-        }}
-      >
-        {/* Modal Header */}
-        <div
-          style={{
-            padding: "24px 32px",
-            borderBottom: "1px solid var(--gray-200)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start"
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: "20px", fontWeight: 800, color: "var(--gray-900)" }}>{title}</h2>
-            {subtitle && <p style={{ fontSize: "14px", color: "var(--gray-500)", marginTop: "4px" }}>{subtitle}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: "36px",
-              height: "36px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--gray-400)",
-              background: "transparent",
-              border: "none",
-              borderRadius: "10px",
-              cursor: "pointer",
-              fontSize: "24px"
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.color = "var(--gray-600)" }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--gray-400)" }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div style={{ padding: "24px 32px", overflowY: "auto", flex: 1 }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  )
 
   return (
     <div>

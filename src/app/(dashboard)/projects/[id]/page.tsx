@@ -12,6 +12,7 @@ import { EditProjectDialog } from "@/components/projects/edit-project-dialog"
 import { FileUploadButton } from "@/components/projects/file-upload-button"
 import { TrackButton } from "@/components/dispatch/track-button"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { toast } from "sonner"
 
 // SVG Icons matching HTML exactly
 const ArrowLeftIcon = () => (
@@ -401,6 +402,13 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                         })
                         if (res.ok) {
                           setEditingLeads(false)
+                          // Update local project state to reflect changes immediately
+                          setProject(prev => prev ? {
+                            ...prev,
+                            leadsGenerated: gen || null,
+                            leadsConverted: conv || null
+                          } : null)
+                          toast.success('Lead data saved successfully!')
                           router.refresh()
                         } else {
                           const data = await res.json()

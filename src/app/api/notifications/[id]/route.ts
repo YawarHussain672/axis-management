@@ -23,7 +23,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to delete notification" }, { status: 500 })
   }
 }

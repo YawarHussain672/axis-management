@@ -6,6 +6,7 @@ import Link from "next/link"
 import { formatDate } from "@/utils/formatters"
 import { TrackButton } from "@/components/dispatch/track-button"
 import { DispatchHeaderActions } from "@/components/dispatch/dispatch-header-actions"
+import { PodUploadButton } from "@/components/dispatch/pod-upload-button"
 
 async function getDispatchData() {
   const dispatches = await prisma.dispatch.findMany({
@@ -94,40 +95,7 @@ export default async function DispatchPage() {
                   </span>
                 </td>
                 <td style={{ padding: '14px 16px' }}>
-                  {dispatch.podUrl ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontWeight: 600, fontSize: '13px' }}>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Available
-                      </span>
-                      <a
-                        href={dispatch.podUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '12px',
-                          background: '#f3f4f6',
-                          borderRadius: '6px',
-                          color: '#374151',
-                          fontWeight: 500,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download
-                      </a>
-                    </div>
-                  ) : (
-                    <span style={{ color: 'var(--gray-400)', fontSize: '13px' }}>Pending</span>
-                  )}
+                  <PodUploadButton dispatchId={dispatch.id} podUrl={dispatch.podUrl} />
                 </td>
                 <td style={{ padding: '14px 16px' }}>
                   {dispatch.courier && dispatch.trackingId ? (

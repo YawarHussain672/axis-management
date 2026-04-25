@@ -122,7 +122,6 @@ export async function GET() {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"
-    console.error("Analytics API error:", message)
     return NextResponse.json({ error: "Failed to fetch analytics", details: message }, { status: 500 })
   }
 }

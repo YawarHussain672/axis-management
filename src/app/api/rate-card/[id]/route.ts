@@ -20,7 +20,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
     return NextResponse.json(item)
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to update rate card" }, { status: 500 })
   }
 }
@@ -34,10 +33,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const { id } = await params
-    await prisma.rateCard.update({ where: { id }, data: { active: false } })
+    await prisma.rateCard.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to delete rate card item" }, { status: 500 })
   }
 }

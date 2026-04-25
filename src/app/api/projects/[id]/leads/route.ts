@@ -65,7 +65,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return NextResponse.json({ success: true, roi })
   } catch (error) {
-    console.error(error)
     return NextResponse.json({ error: "Failed to update lead data" }, { status: 500 })
   }
 }

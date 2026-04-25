@@ -45,7 +45,6 @@ export function PodUploadButton({ dispatchId, podUrl }: PodUploadButtonProps) {
           errorMessage = data.error || "Upload failed"
         } catch {
           errorMessage = res.statusText || "Upload failed"
-          console.error("POD upload server response:", text)
         }
         toast.error(errorMessage)
       }

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer, CHANNELS, EVENTS } from "@/lib/pusher"
 import { notifyProjectDispatched } from "@/lib/notifications"
-import * as XLSX from "xlsx"
+import ExcelJS from "exceljs"
 
 type DispatchUploadRow = Record<string, string | number | Date | null | undefined>
 
@@ -34,12 +34,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
     }
 
-    // Read Excel file
-    const bytes = await file.arrayBuffer()
-    const workbook = XLSX.read(bytes, { type: "array" })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json<DispatchUploadRow>(worksheet, { defval: "" })
+    // Read Excel file with ExcelJS
+    const arrayBuffer = await file.arrayBuffer()
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(Buffer.from(arrayBuffer) as unknown as ExcelJS.Buffer)
+    const sheet = workbook.worksheets[0]
+
+    if (!sheet) {
+      return NextResponse.json({ error: "Excel file has no worksheets" }, { status: 400 })
+    }
+
+    const data: Record<string, string | number | Date | null | undefined>[] = []
+    const headerRow = sheet.getRow(1)
+    const headers: string[] = []
+    headerRow.eachCell((cell: ExcelJS.Cell) => {
+      headers.push(cell.value?.toString() || "")
+    })
+
+    sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
+      if (rowNumber === 1) return // Skip header row
+      const rowData: Record<string, string | number | Date | null | undefined> = {}
+      row.eachCell((cell: ExcelJS.Cell, colNumber: number) => {
+        const header = headers[colNumber - 1]
+        if (header) {
+          const val = cell.value
+          // Convert ExcelJS CellValue to compatible type
+          if (val === null || val === undefined) {
+            rowData[header] = null
+          } else if (typeof val === 'string' || typeof val === 'number' || val instanceof Date) {
+            rowData[header] = val
+          } else {
+            rowData[header] = String(val)
+          }
+        }
+      })
+      data.push(rowData)
+    })
 
     const results = {
       processed: 0,
@@ -134,7 +164,6 @@ export async function POST(request: NextRequest) {
       updated: results.updated,
     })
   } catch (error) {
-    console.error("[Bulk Dispatch] Error:", error)
     return NextResponse.json({ error: "Failed to process bulk dispatch" }, { status: 500 })
   }
 }
@@ -147,22 +176,27 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Create template
-    const template = [
-      {
-        "Project ID": "PROJ-001",
-        "Courier": "Blue Dart",
-        "Tracking ID": "1234567890",
-        "Dispatch Date": "2024-01-15",
-        "Expected Delivery": "2024-01-18",
-      },
+    // Create template with ExcelJS
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet("Dispatch Template")
+
+    worksheet.columns = [
+      { header: "Project ID", key: "projectId" },
+      { header: "Courier", key: "courier" },
+      { header: "Tracking ID", key: "trackingId" },
+      { header: "Dispatch Date", key: "dispatchDate" },
+      { header: "Expected Delivery", key: "expectedDelivery" },
     ]
 
-    const worksheet = XLSX.utils.json_to_sheet(template)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Dispatch Template")
+    worksheet.addRow({
+      projectId: "PROJ-001",
+      courier: "Blue Dart",
+      trackingId: "1234567890",
+      dispatchDate: "2024-01-15",
+      expectedDelivery: "2024-01-18",
+    })
 
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })
+    const buffer = await workbook.xlsx.writeBuffer()
 
     return new NextResponse(buffer, {
       headers: {
@@ -171,7 +205,6 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("[Bulk Dispatch Template] Error:", error)
     return NextResponse.json({ error: "Failed to generate template" }, { status: 500 })
   }
 }

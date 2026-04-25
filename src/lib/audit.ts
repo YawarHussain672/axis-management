@@ -19,6 +19,6 @@ export async function logActivity(data: {
       },
     })
   } catch {
-    console.error("Failed to write audit log:", data)
+    // Silent fail - audit log is not critical
   }
 }

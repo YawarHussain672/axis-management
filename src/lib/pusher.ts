@@ -23,10 +23,10 @@ export function getPusherClient(): PusherJS {
     // Debug connection state
     if (typeof window !== "undefined") {
       pusherClient.connection.bind("connected", () => {
-        console.log("[Pusher] Connected successfully")
+        // Connection established
       })
       pusherClient.connection.bind("disconnected", () => {
-        console.log("[Pusher] Disconnected")
+        // Connection lost
       })
       pusherClient.connection.bind("error", () => {
         // Silent fail - polling will handle notifications

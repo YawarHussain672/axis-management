@@ -4,11 +4,20 @@ import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
+interface UploadResult {
+  message: string
+  created: number
+  updated: number
+  skipped: number
+  errors: string[]
+}
+
 export function DispatchHeaderActions() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -37,14 +46,19 @@ export function DispatchHeaderActions() {
       try {
         data = JSON.parse(text)
       } catch {
-        console.error("Dispatch upload server response:", text)
         toast.error(res.statusText || "Upload failed")
         return
       }
 
       if (res.ok) {
         if (data.errors && data.errors.length > 0) {
-          toast.warning(`${data.message} (with ${data.errors.length} error${data.errors.length > 1 ? 's' : ''})`)
+          setUploadResult({
+            message: data.message,
+            created: data.created,
+            updated: data.updated,
+            skipped: data.skipped,
+            errors: data.errors,
+          })
         } else {
           toast.success(data.message)
         }
@@ -52,7 +66,6 @@ export function DispatchHeaderActions() {
       } else {
         const errorMsg = data.details || data.error || "Upload failed"
         toast.error(errorMsg)
-        console.error("Dispatch upload error:", data)
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Network error. Please try again.")
@@ -151,7 +164,6 @@ export function DispatchHeaderActions() {
       doc.save(`Dispatch_Report_${new Date().toISOString().split("T")[0]}.pdf`)
       toast.success("Dispatch report downloaded!")
     } catch (err) {
-      console.error(err)
       toast.error("Export failed. Please try again.")
     } finally {
       setExporting(false)
@@ -172,6 +184,120 @@ export function DispatchHeaderActions() {
         {uploading ? "Processing..." : "Upload Courier Excel"}
       </button>
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} />
+
+      {/* Upload Result Modal */}
+      {uploadResult && (
+        <div
+          onClick={() => setUploadResult(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '500px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                padding: '20px 24px',
+                color: '#ffffff'
+              }}
+            >
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, marginBottom: '4px' }}>
+                Upload Completed with Warnings
+              </h2>
+              <p style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>
+                {uploadResult.message}
+              </p>
+            </div>
+
+            {/* Stats */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                <div style={{ textAlign: 'center', padding: '12px', background: '#f0fdf4', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#16a34a' }}>{uploadResult.created}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Created</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#2563eb' }}>{uploadResult.updated}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Updated</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '12px', background: '#fef3c7', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#d97706' }}>{uploadResult.skipped}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Skipped</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Errors List */}
+            <div style={{ padding: '20px 24px', flex: 1, overflow: 'auto' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '12px' }}>
+                Error Details ({uploadResult.errors.length}):
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {uploadResult.errors.map((error, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      padding: '12px 16px',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px'
+                    }}
+                  >
+                    <svg width="16" height="16" fill="none" stroke="#dc2626" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: '2px' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span style={{ fontSize: '13px', color: '#991b1b', lineHeight: '1.5' }}>{error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setUploadResult(null)}
+                style={{
+                  padding: '10px 20px',
+                  background: '#003c71',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Export PDF */}
       <button

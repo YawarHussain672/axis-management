@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error("[Rate Card Calculate] Error:", error)
     return NextResponse.json({ error: "Failed to calculate price" }, { status: 500 })
   }
 }

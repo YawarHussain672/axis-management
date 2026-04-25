@@ -46,7 +46,6 @@ export async function DELETE(
         await cloudinary.uploader.destroy(`axis-print/${fileRecord.projectId}/${fileRecord.type.toLowerCase()}/${publicId}`)
       }
     } catch (cloudinaryError) {
-      console.error("Cloudinary delete error:", cloudinaryError)
       // Continue to delete from database even if Cloudinary fails
     }
 
@@ -65,7 +64,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Delete file error:", error)
     return NextResponse.json({ error: "Failed to delete file" }, { status: 500 })
   }
 }
