@@ -371,7 +371,7 @@ export default function AnalyticsPage() {
                       style={{
                         width: `${percentage}%`,
                         height: "100%",
-                        background: "linear-gradient(90deg, #003c71 0%, #0056a3 100%)",
+                        background: "linear-gradient(90deg, #0ea5e9 0%, #38bdf8 100%)",
                         borderRadius: "5px",
                         transition: "width 0.3s ease"
                       }}
@@ -393,13 +393,13 @@ export default function AnalyticsPage() {
           </div>
           <div className="card-body">
             {data.projectsByStatus.map((s) => {
-              const statusStyles: Record<string, { bg: string; border: string; text: string }> = {
-                delivered: { bg: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", text: "#16a34a" },
-                dispatched: { bg: "rgba(37, 99, 235, 0.15)", border: "1px solid rgba(37, 99, 235, 0.3)", text: "#2563eb" },
-                printing: { bg: "rgba(217, 119, 6, 0.15)", border: "1px solid rgba(217, 119, 6, 0.3)", text: "#d97706" },
-                approved: { bg: "rgba(124, 58, 237, 0.15)", border: "1px solid rgba(124, 58, 237, 0.3)", text: "#7c3aed" },
-                requested: { bg: "rgba(100, 116, 139, 0.15)", border: "1px solid rgba(100, 116, 139, 0.3)", text: "#64748b" },
-                cancelled: { bg: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.3)", text: "#dc2626" }
+              const statusStyles: Record<string, { bg: string; text: string; dot: string; glow: string }> = {
+                delivered: { bg: "rgba(34, 197, 94, 0.15)", text: "#16a34a", dot: "#22c55e", glow: "0 0 8px #22c55e" },
+                dispatched: { bg: "rgba(37, 99, 235, 0.15)", text: "#2563eb", dot: "#3b82f6", glow: "0 0 8px #3b82f6" },
+                printing: { bg: "rgba(217, 119, 6, 0.15)", text: "#d97706", dot: "#f59e0b", glow: "0 0 8px #f59e0b" },
+                approved: { bg: "rgba(124, 58, 237, 0.15)", text: "#7c3aed", dot: "#8b5cf6", glow: "0 0 8px #8b5cf6" },
+                requested: { bg: "rgba(100, 116, 139, 0.15)", text: "#64748b", dot: "#94a3b8", glow: "0 0 8px #94a3b8" },
+                cancelled: { bg: "rgba(220, 38, 38, 0.15)", text: "#dc2626", dot: "#ef4444", glow: "0 0 8px #ef4444" }
               }
               const style = statusStyles[s.status.toLowerCase()] || statusStyles.requested
 
@@ -411,12 +411,24 @@ export default function AnalyticsPage() {
                       color: style.text,
                       textTransform: "capitalize",
                       background: style.bg,
-                      border: style.border,
-                      padding: "6px 12px",
+                      padding: "6px 14px",
                       borderRadius: "9999px",
-                      fontSize: "13px"
+                      fontSize: "13px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px"
                     }}
                   >
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: style.dot,
+                        boxShadow: style.glow,
+                        animation: "pulse-glow 2s ease-in-out infinite"
+                      }}
+                    />
                     {s.status}
                   </span>
                   <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "16px" }}>
@@ -497,6 +509,20 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </div>
+
+      {/* Animation styles */}
+      <style jsx>{`
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 0 6px currentColor;
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 0 12px currentColor, 0 0 20px currentColor;
+            transform: scale(1.15);
+          }
+        }
+      `}</style>
     </div>
   )
 }

@@ -85,6 +85,7 @@ export function TopBar({ user }: TopBarProps) {
       PRINTING: "status-badge status-printing",
       DISPATCHED: "status-badge status-dispatched",
       DELIVERED: "status-badge status-delivered",
+      CANCELLED: "status-badge status-cancelled",
     }
     return classes[status] || "status-badge"
   }

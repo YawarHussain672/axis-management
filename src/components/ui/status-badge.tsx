@@ -13,7 +13,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     PRINTING: { class: "status-printing", label: "Printing" },
     DISPATCHED: { class: "status-dispatched", label: "Dispatched" },
     DELIVERED: { class: "status-delivered", label: "Delivered" },
-    CANCELLED: { class: "status-requested", label: "Cancelled" },
+    CANCELLED: { class: "status-cancelled", label: "Cancelled" },
   }
 
   const config = statusConfig[status] || { class: "", label: status }

@@ -74,7 +74,8 @@ const LogoutIcon = () => (
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [counts, setCounts] = useState({ totalProjects: 32, pendingApprovals: 2 })
+  const [counts, setCounts] = useState({ totalProjects: 0, pendingApprovals: 0 })
+  const [countsLoaded, setCountsLoaded] = useState(false)
 
   // Fetch real-time counts
   useEffect(() => {
@@ -84,9 +85,11 @@ export function Sidebar({ user }: SidebarProps) {
         if (res.ok) {
           const data = await res.json()
           setCounts(data)
+          setCountsLoaded(true)
         }
       } catch {
-        // Use default counts from HTML
+        // Silently fail, keep showing 0 or loading state
+        setCountsLoaded(true)
       }
     }
     fetchCounts()
@@ -95,7 +98,7 @@ export function Sidebar({ user }: SidebarProps) {
   }, [])
 
   const isAdmin = user?.role === "ADMIN"
-  const initials = user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "HG"
+  const initials = user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "??"
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href
@@ -132,13 +135,17 @@ export function Sidebar({ user }: SidebarProps) {
           <Link href="/projects" className={`nav-item ${isActive("/projects") ? "active" : ""}`}>
             <FolderIcon />
             All Projects
-            <span className="nav-badge">{counts.totalProjects}</span>
+            {countsLoaded && counts.totalProjects > 0 && (
+              <span className="nav-badge">{counts.totalProjects}</span>
+            )}
           </Link>
           {isAdmin && (
             <Link href="/approvals" className={`nav-item ${isActive("/approvals") ? "active" : ""}`}>
               <CheckIcon />
               Approvals
-              <span className="nav-badge">{counts.pendingApprovals}</span>
+              {countsLoaded && counts.pendingApprovals > 0 && (
+                <span className="nav-badge">{counts.pendingApprovals}</span>
+              )}
             </Link>
           )}
           {isAdmin && (
@@ -187,8 +194,8 @@ export function Sidebar({ user }: SidebarProps) {
         <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)}>
           <div className="user-avatar">{initials}</div>
           <div className="user-info">
-            <h4>{user?.name || "Harsh Gupta"}</h4>
-            <p>{user?.role || "Admin"}</p>
+            <h4>{user?.name || "Loading..."}</h4>
+            <p>{user?.role || "..."}</p>
           </div>
           <ChevronDownIcon />
         </div>

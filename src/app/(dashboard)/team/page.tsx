@@ -59,6 +59,8 @@ export default async function TeamPage() {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>Location</th>
+                <th>Branch</th>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Joined Date</th>
@@ -92,6 +94,8 @@ export default async function TeamPage() {
                   </td>
                   <td>{member.email}</td>
                   <td className="font-mono">{member.phone || "—"}</td>
+                  <td>{member.location || "—"}</td>
+                  <td>{member.branch || "—"}</td>
                   <td>
                     <span
                       style={{
@@ -107,17 +111,9 @@ export default async function TeamPage() {
                     </span>
                   </td>
                   <td>
-                    <span
-                      style={{
-                        padding: '4px 12px',
-                        background: member.active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        color: member.active ? 'var(--color-success)' : 'var(--color-error)',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 700
-                      }}
-                    >
-                      {member.active ? '● Active' : '● Inactive'}
+                    <span className={`status-badge ${member.active ? 'status-delivered' : 'status-cancelled'}`}>
+                      <span className="status-dot"></span>
+                      {member.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td>{formatJoinedDate(member.createdAt)}</td>
@@ -140,7 +136,7 @@ export default async function TeamPage() {
               ))}
               {members.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '60px', color: 'var(--gray-400)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '60px', color: 'var(--gray-400)' }}>
                     <div style={{ color: 'var(--gray-300)', marginBottom: '12px' }}>
                       <UsersIcon />
                     </div>

@@ -23,6 +23,12 @@ const LoaderIcon = () => (
   </svg>
 )
 
+const TrashIcon = () => (
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
 const CloseIcon = () => (
   <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -327,6 +333,18 @@ export function TeamActions({ mode, member }: TeamActionsProps) {
       >
         {loading ? <LoaderIcon /> : (member?.active ? 'Deactivate' : 'Activate')}
       </button>
+
+      {/* Delete Button - Only show for inactive members */}
+      {!member?.active && (
+        <button
+          className="btn btn-secondary"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={loading}
+          style={{ padding: '6px 10px', fontSize: '12px', color: 'var(--color-error)' }}
+        >
+          <TrashIcon />
+        </button>
+      )}
 
       {/* Edit Modal */}
       {open && (
