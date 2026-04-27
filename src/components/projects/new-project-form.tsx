@@ -32,6 +32,13 @@ const LoaderIcon = () => (
   </svg>
 )
 
+// Currency display with same size symbol and amount
+const Currency = ({ amount, size = 'inherit', color }: { amount: number, size?: string, color?: string }) => (
+  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: size, color: color || 'inherit' }}>
+    ₹{Math.round(amount).toLocaleString('en-IN')}
+  </span>
+)
+
 interface CollateralItem { id: string; itemName: string; quantity: number; unitPrice: number; totalPrice: number }
 interface POC { id: string; name: string; email: string }
 interface RateCardItem { id: string; name: string; defaultPrice: number; volumeSlabs: VolumeSlab[] }
@@ -180,9 +187,6 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
       <form onSubmit={handleSubmit} noValidate>
         {/* Project Details Card */}
         <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title">Project Details</h3>
-          </div>
           <div style={{ padding: '24px' }}>
             <div className="form-grid">
               <div className="form-group">
@@ -214,7 +218,7 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">City <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <label className="form-label">Location (City) <span style={{ color: 'var(--color-error)' }}>*</span></label>
                 <select
                   className={`form-select ${errors.city ? 'border-red-400' : ''}`}
                   value={formData.city}
@@ -229,7 +233,7 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Branch <span style={{ color: 'var(--color-error)' }}>*</span></label>
+                <label className="form-label">Branch Location <span style={{ color: 'var(--color-error)' }}>*</span></label>
                 <select
                   className={`form-select ${errors.branch ? 'border-red-400' : ''}`}
                   value={formData.branch}
@@ -244,7 +248,7 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
                 {errors.branch && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.branch}</p>}
               </div>
 
-              <div className="form-group full-width">
+              <div className="form-group">
                 <label className="form-label">Delivery Date <span style={{ color: 'var(--color-error)' }}>*</span></label>
                 <input
                   type="date"
@@ -256,15 +260,29 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
                 />
                 {errors.deliveryDate && <p style={{ fontSize: '13px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}><AlertIcon /> {errors.deliveryDate}</p>}
               </div>
+
+              <div className="form-group">
+                <label className="form-label">State</label>
+                <input
+                  type="text"
+                  readOnly
+                  className="form-input"
+                  style={{ background: 'var(--gray-100)' }}
+                  value={cityData?.state || ''}
+                  placeholder="State"
+                />
+              </div>
             </div>
           </div>
         </div>
 
+        {/* Collaterals Label Outside Card */}
+        <div style={{ marginBottom: '8px' }}>
+          <label style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gray-700)' }}>Collaterals (Add Multiple Items) <span style={{ color: 'var(--color-error)' }}>*</span></label>
+        </div>
+
         {/* Collaterals Card */}
         <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title">Collaterals (Add Multiple Items) <span style={{ color: 'var(--color-error)' }}>*</span></h3>
-          </div>
           <div style={{ padding: '24px' }}>
             {errors.collaterals && (
               <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--color-error)', borderRadius: '10px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -338,49 +356,51 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
           </div>
         </div>
 
-        {/* Instructions Card */}
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title">Special Instructions</h3>
-            <p style={{ fontSize: '13px', color: 'var(--gray-500)', margin: 0 }}>Add any specific requirements, delivery notes, or special handling instructions</p>
-          </div>
-          <div style={{ padding: '24px' }}>
-            <textarea
-              className="form-textarea"
-              rows={5}
-              value={formData.instructions}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, instructions: e.target.value })}
-              placeholder="E.g., Delivery between 9 AM - 5 PM only, Handle with care, Contact POC before dispatch..."
-              style={{ width: '100%', resize: 'vertical', minHeight: '120px' }}
-            />
-          </div>
+        {/* Special Instructions - Matching HTML exactly */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gray-700)' }}>Special Instructions</label>
+          <textarea
+            rows={3}
+            value={formData.instructions}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, instructions: e.target.value })}
+            placeholder="E.g., Delivery between 9 AM - 5 PM only, Handle with care, Contact POC before dispatch..."
+            style={{
+              padding: '11px 14px',
+              border: '1px solid var(--gray-300)',
+              borderRadius: '10px',
+              fontSize: '14px',
+              fontWeight: 500,
+              fontFamily: 'var(--font-sans)',
+              outline: 'none',
+              width: '100%',
+              minHeight: '80px',
+              resize: 'vertical'
+            }}
+          />
         </div>
 
-        {/* Cost Summary Card */}
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header">
-            <h3 className="card-title">Cost Summary</h3>
-          </div>
+        {/* Cost Summary with GST Breakdown */}
+        <div className="card" style={{ marginBottom: '24px', background: 'rgba(224, 242, 254, 0.3)', border: '1px solid rgba(186, 230, 253, 0.5)' }}>
           <div style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>Subtotal (Before GST):</span>
-              <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gray-800)' }}>{formatCurrency(subtotal)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gray-700)' }}>Subtotal (Before GST):</span>
+              <Currency amount={subtotal} size="15px" color="var(--gray-800)" />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <span style={{ fontSize: '14px', color: 'var(--gray-600)' }}>GST @ 18%:</span>
-              <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-warning)' }}>{formatCurrency(gstAmount)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--gray-600)' }}>GST @ 18%:</span>
+              <Currency amount={gstAmount} size="14px" color="#0ea5e9" />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '16px', borderTop: '2px solid var(--gray-200)', alignItems: 'center' }}>
-              <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gray-900)' }}>Total Payable:</span>
-              <span style={{ fontSize: '32px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--axis-primary)' }}>{formatCurrency(totalCost)}</span>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--gray-900)' }}>Total Payable:</span>
+              <span style={{ fontSize: '24px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--axis-primary)' }}>{formatCurrency(totalCost)}</span>
             </div>
-            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '10px' }}>
-              <p style={{ fontSize: '13px', color: 'var(--color-warning)' }}>💡 All prices exclude GST. Final invoice will include 18% GST</p>
+            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '10px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: '#1e40af', fontWeight: 500, margin: 0 }}>💡 All prices exclude GST. Final invoice will include 18% GST</p>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons at bottom of form */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button
             type="button"
@@ -394,8 +414,9 @@ export function NewProjectForm({ onSuccess, onCancel }: NewProjectFormProps) {
             type="submit"
             disabled={isLoading}
             className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {isLoading ? <><LoaderIcon /> Creating...</> : "Create Project"}
+            {isLoading ? <><LoaderIcon /> Creating...</> : <><PlusIcon /> Create Project</>}
           </button>
         </div>
       </form>

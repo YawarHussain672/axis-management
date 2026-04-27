@@ -771,6 +771,36 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 168, 204, 0.1);
 }
 
+/* Multi-Collateral Builder - From HTML file */
+.collateral-builder {
+  background: var(--gray-50);
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--gray-300);
+}
+
+.collateral-item {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: end;
+}
+
+.add-collateral-btn {
+  padding: 10px;
+  background: var(--axis-accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* Utility */
 .hidden {
   display: none !important;

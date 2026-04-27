@@ -144,6 +144,7 @@ export function NewProjectModal() {
         >
           <NewProjectForm onSuccess={handleSuccess} onCancel={handleClose} />
         </div>
+
       </div>
     </div>
   )
